@@ -3,8 +3,7 @@ title: "Graph"
 author: "Mingze Li 300137754"
 date: "2025-02-13"
 output:
-  pdf_document:
-    latex_engine: xelatex
+  github_document: default
 ---
 
 ```{r setup, include=FALSE}

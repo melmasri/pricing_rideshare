@@ -1,21 +1,14 @@
----
-title: "Sensitive Test"
-author: "Mingze Li"
-date: "2015-05-11"
-output:
-  github_document: default
----
+Sensitive Test
+================
+Mingze Li
+2015-05-11
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
+``` r
 library(data.table)
 library(ggplot2)
 ```
 
-```{r}
+``` r
 # % Return at Different Pressure Settings
 return_dt <- data.table(
     abuse_ratio = c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9),
@@ -46,7 +39,7 @@ sd_dt <- data.table(
 # write.csv(sd_dt, "sd_dt.csv")
 ```
 
-```{r}
+``` r
 return_long <- melt(return_dt,
     id.vars = "abuse_ratio",
     variable.name = "lambda", value.name = "return"
@@ -109,7 +102,16 @@ ggplot(plot_data, aes(x = as.numeric(gsub("lambda_", "", lambda)), y = return, g
     )
 ```
 
-```{r}
+    ## Scale for x is already present.
+    ## Adding another scale for x, which will replace the existing scale.
+    ## Scale for colour is already present.
+    ## Adding another scale for colour, which will replace the existing scale.
+    ## Scale for fill is already present.
+    ## Adding another scale for fill, which will replace the existing scale.
+
+![](sensitive_test_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+
+``` r
 # plot without C.I.
 ggplot(plot_data, aes(x = as.numeric(gsub("lambda_", "", lambda)), y = return, group = factor(abuse_ratio))) +
     geom_line(aes(color = factor(abuse_ratio)), linewidth = 1.2) +
@@ -133,3 +135,5 @@ ggplot(plot_data, aes(x = as.numeric(gsub("lambda_", "", lambda)), y = return, g
     ) +
     guides(color = guide_legend(nrow = 2, ncol = 5))
 ```
+
+![](sensitive_test_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->

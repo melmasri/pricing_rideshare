@@ -3,8 +3,7 @@ title: "Table 3"
 author: "Mingze Li"
 date: "2015-06-18"
 output:
-  pdf_document:
-    latex_engine: xelatex
+  github_document: default
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)

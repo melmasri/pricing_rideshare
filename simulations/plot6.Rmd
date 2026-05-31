@@ -3,8 +3,7 @@ title: "Return Analysis 2"
 author: "Mingze Li"
 date: "2015-06-11"
 output:
-  pdf_document:
-    latex_engine: xelatex
+  github_document: default
 ---
 
 ```{r setup, include=FALSE}

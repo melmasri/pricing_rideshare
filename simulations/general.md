@@ -1,24 +1,35 @@
----
-title: "General"
-author: "Mingze Li 300137754"
-date: "2025-02-02"
-output:
-  github_document: default
----
+General
+================
+Mingze Li 300137754
+2025-02-02
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
+``` r
 library(mvtnorm)
 library(traveltimeCLT)
 library(data.table)
 library(dplyr)
+```
+
+    ## 
+    ## Attaching package: 'dplyr'
+
+    ## The following objects are masked from 'package:data.table':
+    ## 
+    ##     between, first, last
+
+    ## The following objects are masked from 'package:stats':
+    ## 
+    ##     filter, lag
+
+    ## The following objects are masked from 'package:base':
+    ## 
+    ##     intersect, setdiff, setequal, union
+
+``` r
 library(ggplot2)
 ```
 
-```{r}
+``` r
 trips = fread('data/trips.csv')
 
 trips[, whour :=as.POSIXlt(time)$wday*24 + as.POSIXlt(time)$hour]
@@ -54,14 +65,27 @@ U = dependent_uniform(5, 0.3)
 acf(U, lag.max=2, plot=FALSE)
 ```
 
-```{r}
+    ## 
+    ## Autocorrelations of series 'U', by lag
+    ## 
+    ##      0      1      2 
+    ##  1.000  0.310 -0.116
+
+``` r
 trips<-data.frame(trips)
 names(trips)[8]="linkID"
 unique(trips$timeBin)
+```
+
+    ## [1] "Other" "ER"    "MR"
+
+``` r
 length(unique(trips$linkID))
 ```
 
-```{r}
+    ## [1] 41045
+
+``` r
 timebins <- unique(trips$timeBin)
 num_timebins <- length(timebins) 
 timebin_x_edge <-trips %>%
@@ -71,7 +95,7 @@ timebin_x_edge <- timebin_x_edge %>%
   mutate(timebin_x_edge_continuous = dense_rank(timebin_x_edge))
 ```
 
-```{r}
+``` r
 timebin_x_edge_sorted <- timebin_x_edge %>%
   count(timebin_x_edge_continuous) %>%  
   mutate(density = n / sum(n)) %>%  
@@ -93,33 +117,42 @@ speed_statistic <- timebin_x_edge %>%
     sd_speed = sd_na_is_0(speed))
 timebin_x_edge_sorted <- timebin_x_edge_sorted %>%
   left_join(speed_statistic)
+```
+
+    ## Joining with `by = join_by(timebin_x_edge_continuous)`
+
+``` r
 fwrite(timebin_x_edge_sorted,"data/timebin_x_edge_sorted.csv")
 fwrite(timebin_x_edge,"data/timebin_x_edge.csv")
 ```
 
-```{r}
+``` r
 ggplot(timebin_x_edge_sorted,aes(x = n, y = density)) +
   geom_col( color = "darkgrey") +
   labs(title = "", x = "edge x TimeBins", y = "visit likelihood") 
 ```
 
-```{r}
+![](general_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+
+``` r
 ggplot(timebin_x_edge_sorted, aes(n,y = mean_log_duration)) +
   geom_col( color = "darkgrey") +
 #  coord_cartesian(ylim = c(0, 40)) + 
   labs( title="",x = "edge x TimeBins", y = "average log duration")
-
 ```
 
-```{r}
+![](general_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
 
+``` r
 ggplot(timebin_x_edge_sorted, aes(x = n, y = sd_log_duration)) +
    geom_col( color = "darkgrey") +
 #    coord_cartesian(ylim = c(0, 25)) + 
   labs(title = "", x = "edge x TimeBins", y = "standard deviation of log duration")
 ```
 
-```{r}
+![](general_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+
+``` r
 trips_table=data.table(trips)
 trip_length = trips_table[,.N,by="trip"]
 trip_length_density = trip_length %>%
@@ -130,9 +163,9 @@ ggplot(trip_length_density, aes(x = N, y= density)) +
   labs( title="",x = "Number of edges per ride", y = "Quuantity")
 ```
 
+![](general_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
-
-```{r}
+``` r
 id = sample(unique(timebin_x_edge$trip),1000)
 sampled_trips = timebin_x_edge[timebin_x_edge$trip %in% id,]
 sampled_trips <- sampled_trips%>% arrange(desc(trip)) 
@@ -161,8 +194,7 @@ travel_time <- sampled_time
 travel_time$simulated_time <- simulated_time$simulated_time
 ```
 
-```{r}
-
+``` r
 ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time,color="sampled data")) +
   stat_ecdf(aes(x = simulated_time,color="simulated data")) +
@@ -170,3 +202,5 @@ ggplot(travel_time) +
   coord_cartesian(xlim = c(0, 4000), ylim = c(0, 1))+
   scale_color_manual(name="Legend",values = c("black","red"))
 ```
+
+![](general_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
