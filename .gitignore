@@ -1,0 +1,46 @@
+# --- Data (local / large) ---
+simulations/data/
+
+# --- LaTeX build artifacts ---
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+*.xdv
+paper/auto/
+
+# --- R / R Markdown ---
+.Rhistory
+.RData
+.Rproj.user
+.Ruserdata
+*.Rproj
+*_cache/
+*_files/
+.Rprofile
+
+# --- Profiling / temp ---
+profile.out
+*.prof
+*.tmp
+*.swp
+*~
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
