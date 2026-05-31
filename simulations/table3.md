@@ -1,19 +1,14 @@
----
-title: "Table 3"
-author: "Mingze Li"
-date: "2015-06-18"
-output:
-  github_document: default
----
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-```{r}
+Table 3
+================
+Mingze Li
+2015-06-18
+
+``` r
 library(traveltimeCLT)
 library(data.table)
 ```
 
-```{r}
+``` r
 trips <- fread("data/trips.csv")
 names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
 trips$speed <- exp(trips$logspeed)
@@ -23,7 +18,7 @@ id <- sample(unique(trips$trip), 100)
 user_records <- trips[trips$trip %in% id, ]
 ```
 
-```{r}
+``` r
 user_data <- user_records[, .(
     start_time = min(entry_time),
     end_time = max(entry_time),
@@ -33,15 +28,21 @@ user_data <- user_records[, .(
 user_data$real_price <- price(user_data$duration, user_data$distance)[, 1]
 ```
 
-
-```{r}
+``` r
 fit_t <- traveltimeCLT(trips, "trip-specific")
+```
+
+    ## Warning in traveltimeCLT(trips, "trip-specific"): 4 trips have less than 1
+    ## observation, and will not be used to estimate autocorrelations, or residual
+    ## variance parameters
+
+``` r
 fit_p <- traveltimeCLT(trips, "population")
 pt <- predict(fit_t, user_records)
 pp <- predict(fit_p, user_records)
 ```
 
-```{r}
+``` r
 zeta <- 0.1
 Rt0 <- request_R(pt, user_data$start_time, user_data$start_time, user_data$distance, K = 0.9, zeta = 0, risk_free = 0)
 Rt1 <- request_R(pt, user_data$start_time, user_data$start_time, user_data$distance, K = 0.9, zeta = zeta, risk_free = 0)
@@ -60,8 +61,7 @@ if (any(is.na(Rt0))) {
 }
 ```
 
-
-```{r}
+``` r
 Model <- c(rep("Trip-Specific", 2), rep("Population", 2))
 Cutoff <- rep(c(0, zeta), 2)
 Percentage_profit <- c(
@@ -97,7 +97,7 @@ Average_pct_premium_to_P <- c(
 Total_trips <- c(length(Rt0), length(Rt1), length(Rp0), length(Rp1))
 ```
 
-```{r}
+``` r
 table3 <- data.table(
     Model = Model,
     Cutoff = Cutoff,
@@ -110,3 +110,16 @@ table3 <- data.table(
 )
 table3
 ```
+
+    ##            Model Cutoff Percentage_Profit Average_Profit Maximum_Loss
+    ##           <char>  <num>             <num>          <num>        <num>
+    ## 1: Trip-Specific    0.0          -0.44898       -0.22875     -6.90065
+    ## 2: Trip-Specific    0.1          -0.53332       -0.35910     -7.99374
+    ## 3:    Population    0.0           2.86038        0.08508     -8.41027
+    ## 4:    Population    0.1           2.70674       -0.03453     -9.28368
+    ##    Average_premium Average_pct_premium_to_P Total_trips
+    ##              <num>                    <num>       <int>
+    ## 1:        2.487087                10.490765         100
+    ## 2:        1.813777                 7.895669         100
+    ## 3:        2.621399                11.420297         100
+    ## 4:        2.154960                 9.728550         100

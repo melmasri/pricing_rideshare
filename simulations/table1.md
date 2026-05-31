@@ -1,26 +1,20 @@
----
-title: "Table 1"
-author: "Mingze Li"
-date: "2015-06-11"
-output:
-  github_document: default
----
+Table 1
+================
+Mingze Li
+2015-06-11
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
+``` r
 library(traveltimeCLT)
 library(data.table)
 ```
-```{r}
+
+``` r
 trips <- fread("data/trips.csv")
 trips$timeBin <- time_bins_readable(trips$time)
 timebin <- c("Global", unique(trips$timeBin))
 ```
 
-```{r}
+``` r
 trips[, duration := as.numeric(difftime(shift(time, type = "lead"), time, units = "secs")), by = trip]
 trips[, log_duration := log(duration)]
 
@@ -52,7 +46,13 @@ stats <- rbind(stats, list(
 stats
 ```
 
-```{r}
+    ##    time_group     mean       sd frequency
+    ##        <char>    <num>    <num>     <int>
+    ## 1:     norush 13.70724 18.44166     18410
+    ## 2:       rush 17.34234 26.91234     58071
+    ## 3:     Global 16.46806 25.18497     76481
+
+``` r
 names(trips2)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
 trips2$speed <- exp(trips2$logspeed)
 links_stats <- link_mean_variance(trips2)
@@ -69,7 +69,7 @@ correlation_dt <- data.table(
 stats <- merge(stats, correlation_dt, by = "time_group", all = TRUE)
 ```
 
-```{r}
+``` r
 global_residual <- residual_variance(trips2, links_stats)
 rush_residual <- residual_variance(trips2[timeBin %in% c("MorningRush", "EveningRush")], links_stats)
 norush_residual <- residual_variance(trips2[timeBin %in% c("EveningNight", "Weekday", "Weekendday")], links_stats)
@@ -82,7 +82,14 @@ stats <- merge(stats, residual_dt, by = "time_group", all = TRUE)
 stats
 ```
 
-```{r}
+    ## Key: <time_group>
+    ##    time_group     mean       sd frequency correlation residual
+    ##        <char>    <num>    <num>     <int>      <list>    <num>
+    ## 1:     Global 16.46806 25.18497     76481   0.2973943 1.743823
+    ## 2:     norush 13.70724 18.44166     18410   0.2861722 1.150558
+    ## 3:       rush 17.34234 26.91234     58071    0.309974 2.037341
+
+``` r
 trips2[, time_group := fcase(
     timeBin %in% c("MorningRush", "EveningRush"), "rush",
     timeBin %in% c("EveningNight", "Weekday", "Weekendday"), "norush",
@@ -95,13 +102,29 @@ trips2_freq <- rbind(trips2_freq, list(
     frequency2 = nrow(trips2)
 ))
 trips2_freq
+```
+
+    ##    time_group frequency2
+    ##        <char>      <int>
+    ## 1:     norush      69285
+    ## 2:       rush     231386
+    ## 3:     Global     300671
+
+``` r
 # stats <- merge(stats, trips2_freq, by = "time_group", all = TRUE)
 
 # stats
 ```
 
-```{r}
+``` r
 library(knitr)
 kable(stats, caption = "Table 1: Statistics of trips")
 ```
 
+| time_group |     mean |       sd | frequency | correlation | residual |
+|:-----------|---------:|---------:|----------:|:------------|---------:|
+| Global     | 16.46806 | 25.18497 |     76481 | 0.2973943   | 1.743823 |
+| norush     | 13.70724 | 18.44166 |     18410 | 0.2861722   | 1.150558 |
+| rush       | 17.34234 | 26.91234 |     58071 | 0.309974    | 2.037341 |
+
+Table 1: Statistics of trips

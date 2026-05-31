@@ -1,19 +1,14 @@
----
-title: "Table 4"
-author: "Mingze Li"
-date: "2015-08-10"
-output:
-  github_document: default
----
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-```{r}
+Table 4
+================
+Mingze Li
+2015-08-10
+
+``` r
 library(traveltimeCLT)
 library(data.table)
 ```
 
-```{r}
+``` r
 trips <- fread("data/trips.csv")
 trips2 <- fread("data/trips.csv")
 names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
@@ -32,23 +27,44 @@ trips_stat <- trips[, .(
     start_time = entry_time[1],
     distance = sum(distance_meters),
     duration_secs = max(entry_time) - min(entry_time),
-    real_price = price(max(entry_time) - min(entry_time), sum(distance_meters))[, 1]
+    real_price = price(max(entry_time) - min(entry_time), sum(distance_meters))[, 1],
+    timeBin = timeBin[1]
 ), tripID]
 ```
 
-```{r}
+``` r
 # find R and K for all trips in trips.csv.
 fit <- traveltimeCLT(trips, "trip-specific")
+```
+
+    ## Warning in traveltimeCLT(trips, "trip-specific"): 4 trips have less than 1
+    ## observation, and will not be used to estimate autocorrelations, or residual
+    ## variance parameters
+
+``` r
 pt <- predict(fit, trips_record)
+```
+
+    ## Warning in aux[(nlink - length(a) + 1):nlink] <- a: number of items to replace
+    ## is not a multiple of replacement length
+
+    ## Warning in aux[(nlink - length(a) + 1):nlink] <- a: number of items to replace
+    ## is not a multiple of replacement length
+    ## Warning in aux[(nlink - length(a) + 1):nlink] <- a: number of items to replace
+    ## is not a multiple of replacement length
+    ## Warning in aux[(nlink - length(a) + 1):nlink] <- a: number of items to replace
+    ## is not a multiple of replacement length
+
+``` r
 Rt <- request_R(pt, trips_stat$start_time, trips_stat$start_time, trips_stat$distance, K = 0.9, risk_free = 0, zeta = 0)
 Kt <- request_K(pt, trips_stat$distance, discount_factor = 0.9)
-# trips_stat$Rt <- Rt
+trips_stat$Rt <- Rt
 trips_stat$Kt <- Kt
 # trips_stat$Rt <- -pmin(mean(Kt) - trips_stat$real_price, 0)
 trips_stat <- na.omit(trips_stat) # remove trips with NA values in Rt and Kt.
 ```
 
-```{r}
+``` r
 # hyperparameters of the simulation.
 # repeat time: how many times to repeat the simulation.
 repeat_time <- 10
@@ -82,21 +98,17 @@ sampled_stat <- pressure_data[,
         samples <- .SD[,
             {
                 q_value <- quantile(test$distance, probs = .BY$quantile)
-                abuse_trips <- test[distance >= q_value]
+                abuse_trips <- trips_stat[distance >= q_value]
                 abuse_sample <- abuse_trips[sample.int(nrow(abuse_trips), size = .BY$M, replace = TRUE)]
                 normal_sample <- test[sample.int(test_size, size = test_size - .BY$M, replace = TRUE)]
 
-                # 合并抽样数据并添加列
+                # combine the abuse sample and normal sample, then add some columns.
                 combined <- rbindlist(list(
-                    abuse_sample[, .(tripID)],
-                    normal_sample[, .(tripID)]
+                    abuse_sample[, .(tripID, Kt, timeBin)],
+                    normal_sample[, .(tripID, Kt, timeBin)]
                 ))[, `:=`(
-                    Rt = rep(mean(-pmin(mean(train$Kt) - trips_stat$real_price, 0)), test_size),
-                    Kt = rep(mean(train$Kt), test_size),
-                    timeBin = sample(c("EveningNight", "EveningRush", "Weekday", "MorningRush", "Weekendday"),
-                        .N,
-                        replace = TRUE
-                    )
+                    # Rt = rep(mean(-pmin(mean(train$Kt) - trips_stat$real_price, 0)), test_size),
+                    Rt = train[sample.int(nrow(train), size = test_size, replace = TRUE)]$Rt
                 )]
 
                 cbind(.SD, combined)
@@ -112,7 +124,7 @@ pressure_data <- merge(pressure_data, sampled_stat, by = c("repeat_time", "quant
 pressure_data$timeBin <- NULL
 ```
 
-```{r}
+``` r
 # simulate the travel time for each trip
 # obtain the frequence of trips and timebin group
 unique_trips <- sampled_stat[
@@ -164,26 +176,87 @@ sampled_stat$real_price <- price(sampled_stat$time, sampled_stat$distance)[, 1]
 pressure_data <- merge(pressure_data, sampled_stat[, c("repeat_time", "quantile", "rider", "M", "i", "real_price")], by = c("repeat_time", "quantile", "M", "rider", "i"), all.x = TRUE)
 ```
 
-```{r}
+``` r
 # calculate the profit
 profit <- pressure_data[, .(
-    profit = sum(Rt) + sum(pmin(Kt - real_price, 0)),
-    expand = sum((real_price))
+    revenue = sum(Rt),
+    cost = sum(-pmin(Kt - real_price, 0)),
+    profit = sum(Rt) - sum(-pmin(Kt - real_price, 0))
 ), by = .(repeat_time, M, quantile, rider)]
 cost_stats_table <- profit[, .(
-    pct_mean = mean((profit) / expand * test_size, na.rm = TRUE),
-    sd = sqrt(var(profit, na.rm = TRUE) / sqrt(test_size)),
+    profit_over_revenue = mean(profit / cost),
+    sd = sqrt(var(profit / cost, na.rm = TRUE) / sqrt(test_size)),
     dollar_mean = mean(profit, na.rm = TRUE)
 ), by = .(M, quantile)]
 # table(sampled_data$real_price)
 ```
 
-```{r}
+``` r
 # reshape the data to draw the table
-table4 <- dcast(cost_stats_table, M ~ quantile, value.var = "pct_mean")
+table4 <- dcast(cost_stats_table, M ~ quantile, value.var = "profit_over_revenue")
 table5 <- dcast(cost_stats_table, M ~ quantile, value.var = "sd")
 table6 <- dcast(cost_stats_table, M ~ quantile, value.var = "dollar_mean")
 table4
+```
+
+    ## Key: <M>
+    ##        M           0          0.1           0.2          0.3          0.4
+    ##    <num>       <num>        <num>         <num>        <num>        <num>
+    ## 1:     0  0.02473150 -0.013325544  0.0104324706  0.001506374  0.011163751
+    ## 2:     4 -0.01413810 -0.012533071 -0.0008463387 -0.018754847 -0.007615085
+    ## 3:     8 -0.02481657 -0.008949884 -0.0430692255 -0.038021231 -0.061798595
+    ## 4:    12  0.00961885 -0.015901941 -0.0253572582 -0.043227249 -0.072145784
+    ## 5:    16 -0.02781936 -0.027450025 -0.0413757317 -0.069931299 -0.081439843
+    ## 6:    20  0.01709027 -0.065435187 -0.0526510526 -0.047912983 -0.108427153
+    ##            0.5          0.6         0.7         0.8         0.9
+    ##          <num>        <num>       <num>       <num>       <num>
+    ## 1: -0.01856682  0.001057603  0.00711543  0.02191876 -0.01322781
+    ## 2: -0.02975002 -0.020354627 -0.04057959 -0.07042229 -0.05859063
+    ## 3: -0.08128001 -0.038428337 -0.08335399 -0.08606749 -0.13624624
+    ## 4: -0.12919291 -0.110737345 -0.13854772 -0.13884464 -0.19980296
+    ## 5: -0.11293802 -0.162297430 -0.20813657 -0.21671192 -0.26399433
+    ## 6: -0.13244485 -0.176888437 -0.17272220 -0.23467599 -0.27214387
+
+``` r
 table5
+```
+
+    ## Key: <M>
+    ##        M          0        0.1        0.2        0.3        0.4        0.5
+    ##    <num>      <num>      <num>      <num>      <num>      <num>      <num>
+    ## 1:     0 0.08577481 0.08879070 0.09093300 0.10509986 0.07942140 0.08455376
+    ## 2:     4 0.08605922 0.08795636 0.06230677 0.08761973 0.07775329 0.08701536
+    ## 3:     8 0.09749037 0.08643971 0.09689368 0.07379914 0.08398749 0.06907602
+    ## 4:    12 0.07556302 0.07689052 0.07617334 0.06543877 0.06628983 0.08546911
+    ## 5:    16 0.07009748 0.06326850 0.07241897 0.07218033 0.05674925 0.06164084
+    ## 6:    20 0.09128670 0.08071390 0.07482047 0.07063003 0.06055785 0.05457888
+    ##           0.6        0.7        0.8        0.9
+    ##         <num>      <num>      <num>      <num>
+    ## 1: 0.07330410 0.11272080 0.10252695 0.09060382
+    ## 2: 0.07024870 0.08280246 0.08229929 0.07822797
+    ## 3: 0.06699062 0.07602095 0.07840980 0.07139922
+    ## 4: 0.07923848 0.06128053 0.06594091 0.06379282
+    ## 5: 0.06121203 0.08162883 0.05894692 0.05843753
+    ## 6: 0.07031759 0.06378396 0.06394317 0.04769099
+
+``` r
 table6
 ```
+
+    ## Key: <M>
+    ##        M          0       0.1        0.2         0.3        0.4        0.5
+    ##    <num>      <num>     <num>      <num>       <num>      <num>      <num>
+    ## 1:     0 -11.609728 -11.25325  -6.597925 -334.648772  -4.027515  -13.89953
+    ## 2:     4  -8.673456 -91.16015  -2.220561  -19.623151  -5.953978 -422.34664
+    ## 3:     8 -62.633554 -10.24307 -19.335912  -10.381475 -20.014873  -12.37648
+    ## 4:    12  -2.439616 -72.64373  -6.913419   -8.173224 -10.983541  -35.42067
+    ## 5:    16  -5.115875  -4.67243 -14.696243  -12.573609 -10.870190  -16.46359
+    ## 6:    20 -60.214338 -17.11458 -17.128334   -8.518890 -15.101300  -17.32899
+    ##             0.6        0.7        0.8        0.9
+    ##           <num>      <num>      <num>      <num>
+    ## 1:    -2.523072  -54.44545  -47.36123  -23.11488
+    ## 2:    -4.759880  -34.68904  -43.37287  -21.50322
+    ## 3:    -5.930181  -65.76471 -133.79217  -32.50849
+    ## 4:   -28.231159  -25.84628  -20.59762 -259.26711
+    ## 5:   -27.577138  -69.97998  -31.58314  -47.06194
+    ## 6: -1183.631007 -326.33086  -37.34410  -40.99168
