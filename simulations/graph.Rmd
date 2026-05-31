@@ -1,0 +1,230 @@
+---
+title: "Graph"
+author: "Mingze Li 300137754"
+date: "2025-02-13"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(traveltimeCLT)
+library(data.table)
+library(traveltimeHMM)
+library(doParallel)
+
+library(ggplot2)
+library(ggraph)
+library(tidygraph)
+library(igraph)
+```
+
+```{r}
+trips = fread('data/trips.csv')
+trips$time <- as.POSIXct( trips$time, format = "%Y-%m-%dT%H:%M:%OSZ")
+trips$timeBin<-time_bins_readable(trips$time)
+trips <-na.omit(trips)
+trips[, duration_secs := as.numeric(difftime(shift(time, type = "lead"), time, units = "secs")), by = trip]
+trips[, log_duration := log(duration_secs)]
+sd_na_is_0<-function(x){
+  x=na.omit(x)
+  if(length(x)==0)return(sd(x))
+  if(length(x)>=2)return(sd(x))
+  else return(0)
+}
+get_mode <- function(x) {
+  x=na.omit(x)
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+names(trips)[7]<-"length"
+unique(trips$timeBin)
+```
+
+```{r}
+id = sample(unique(trips$trip),20)
+cl <- makeCluster(8)
+registerDoParallel(cl)
+tripID <- unique(trips$trip)
+link_net_list <- foreach(trip_id = tripID, .combine = rbind, .packages = "data.table") %dopar% {trip_links <- trips[trip == trip_id, ]
+  temp_dt <- data.table(linkID = integer(), nextLinkID = integer(), log_duration = numeric(), timeBin = character(),length=numeric())
+  if(length(trip_links$linkId)>1) for (i in 1:(length(trip_links$linkId) - 1)) {
+    current_link <- trip_links$linkId[i]
+    one_way_link <- trip_links$linkId[i + 1]
+    log_duration <- trip_links$log_duration[i]
+    timeBin <- trip_links$timeBin[i]
+    Length <- trip_links$length[i]
+    temp_dt <- rbind(temp_dt, list(linkID = current_link, nextLinkID = one_way_link,log_duration = log_duration, timeBin = timeBin,length=Length))
+  }else return(data.table())
+  temp_dt
+}
+sampled <- foreach(trip_id = id, .combine = rbind, .packages = "data.table") %dopar% {trip_links <- trips[trip == trip_id, ]
+  temp_dt <- data.table(linkID = integer(), nextLinkID = integer(), log_duration = numeric(), timeBin = character())
+  if(length(trip_links$linkId)>1) for (i in 1:(length(trip_links$linkId) - 1)) {
+    current_link <- trip_links$linkId[i]
+    one_way_link <- trip_links$linkId[i + 1]
+    log_duration <- trip_links$log_duration[i]
+    timeBin <- trip_links$timeBin[i]
+    temp_dt <- rbind(temp_dt, list(linkID = current_link, nextLinkID = one_way_link,log_duration = log_duration, timeBin = timeBin))
+  }else return(data.table())
+  temp_dt
+}
+stopCluster(cl)
+```
+Many egdes are not invertible(no record of going backward). But few of them are. Like 959--34707, we have record on both directions. 
+```{r}
+timeBin_stats <- link_net_list[, 
+  .(one_way_mean = mean(log_duration, na.rm = TRUE),
+  one_way_sd = sd_na_is_0(log_duration),
+  one_way_frequency = .N),
+  by = .(linkID, nextLinkID, timeBin)]
+length_stats <- link_net_list[, .(length = get_mode(length)), by = .(linkID, nextLinkID)]
+timeBin_stats <- merge(timeBin_stats, length_stats, by = c("linkID", "nextLinkID"))
+global_stats <- link_net_list[,
+  .(  one_way_mean = mean(log_duration, na.rm = TRUE),
+  one_way_sd = sd_na_is_0(log_duration),
+  one_way_frequency = .N,
+  length = get_mode(length)),, 
+  by = .(linkID, nextLinkID)]
+global_stats[, timeBin := "Global"]
+stats1 <- rbind(timeBin_stats, global_stats)
+remove(timeBin_stats,global_stats,length_stats)
+
+existing_pairs <- unique(link_net_list[, .(linkID, nextLinkID)])
+reverse_pairs <- existing_pairs[, .(linkID = nextLinkID, nextLinkID = linkID)]
+missing_reverse <- reverse_pairs[!existing_pairs, on = .(linkID, nextLinkID)]
+setnames(missing_reverse, c("B", "A"))
+
+fictional_data <- link_net_list[missing_reverse,
+                                on = .(linkID = B),
+                                allow.cartesian = TRUE][nextLinkID != A]
+timeBin_fictional <- fictional_data[,
+  .(one_way_mean = mean(log_duration, na.rm = TRUE),
+  one_way_sd = sd_na_is_0(log_duration),
+  one_way_frequency = .N),
+  by = .(linkID, A, timeBin)]
+timeBin_fictional[, nextLinkID := A][, A := NULL]
+global_fictional <- fictional_data[,
+  .(one_way_mean = mean(log_duration, na.rm = TRUE),
+  one_way_sd = sd_na_is_0(log_duration),
+  one_way_frequency = .N),
+  by = .(linkID, A)]
+global_fictional[, timeBin := "Global"][, nextLinkID := A][, A := NULL]
+fictional_stats <- rbind(timeBin_fictional, global_fictional, fill = TRUE)
+length_fictional <- fictional_data[, .(length = get_mode(length)), by = .(linkID, A)]
+length_fictional[, nextLinkID := A][, A := NULL]
+fictional_stats <- merge(fictional_stats, length_fictional, by = c("linkID", "nextLinkID"))
+  
+fictional_stats[, fictional := TRUE]
+stats1[, fictional := FALSE]
+
+stats1 <- rbind(stats1, fictional_stats, fill = TRUE)
+setcolorder(stats1, c("linkID", "nextLinkID", "timeBin", "one_way_mean", 
+                       "one_way_sd", "one_way_frequency", "length", "fictional"))
+
+remove(fictional_data, fictional_stats, timeBin_fictional,global_fictional,
+       length_fictional, missing_reverse,existing_pairs, reverse_pairs)
+fwrite(stats1,"data/net_stat.csv")
+#fwrite(sampled,"data/sampled.csv")
+```
+
+
+```{r}
+
+edges <- unique(sampled, by = c("linkID", "nextLinkID"))
+
+g <- graph_from_data_frame(edges, directed = TRUE)
+tidy_g <- as_tbl_graph(g)
+
+edge_alpha <- 1
+filtered_trips <- trips[, if (all(trip %in% id)) .SD, by = trip]
+start_nodes <- as.character(filtered_trips[, .( linkId[1]), by = trip]$V1)
+end_nodes <- as.character(filtered_trips[, .( linkId[length(linkId)]), by = trip]$V1)
+junction_nodes <- V(g)[degree(g, mode = "out") > 1 | degree(g, mode = "in") > 1]$name
+node_label <- ifelse(V(g)$name %in% c(junction_nodes,end_nodes,start_nodes), V(g)$name, NA)
+length(end_nodes)
+```
+
+```{r}
+
+paths <- list()
+for (i in 1:length(start_nodes)) {
+    paths <- c(paths, all_simple_paths(g, from = start_nodes[i], to = end_nodes[i]))
+}
+```
+
+```{r}
+shorten_segment <- function(segment) {
+  l<-length(segment)
+  if (l > 6) {
+    new_length <- 5
+    segment <- c(segment[1:new_length],segment[l])
+  }
+  return(segment)
+}
+segmented_paths <- lapply(paths, function(path) {
+  junctions_in_path <- intersect(names(path), junction_nodes)
+  if (length(junctions_in_path) == 0) {
+    return(shorten_segment(path))
+  }
+  segments <- list()
+  start_index <- 1
+  for (junction in junctions_in_path) {
+    end_index <- which(names(path) == junction)
+    segment <- path[start_index:(end_index-1)]
+    segments <- c(segments, list(shorten_segment(segment)))
+    start_index <- end_index
+  }
+  last_segment <- path[start_index:length(path)]
+  segments <- c(segments, list(shorten_segment(last_segment)))
+  return(unlist(segments))
+})
+new_edges <- do.call(rbind, lapply(segmented_paths, function(path) {
+  path_names <- names(path)
+  from <- path_names[-length(path_names)]
+  to <- path_names[-1] 
+  data.frame(from = from, to = to)
+}))
+
+g <- graph_from_data_frame(new_edges, directed = TRUE)
+tidy_g <- as_tbl_graph(g)
+node_label <- ifelse(V(g)$name %in% c(junction_nodes,end_nodes,start_nodes), V(g)$name, NA)
+```
+
+
+
+```{r}
+p1<-ggraph(tidy_g, layout = "stress") +
+  geom_edge_link(
+    aes(alpha = edge_alpha), 
+    arrow = arrow(length = unit(1.5, "mm")), 
+    edge_color = "black" 
+  ) +
+  geom_node_point(
+  aes(
+    color = ifelse(name %in% start_nodes, "Start", 
+                   ifelse(name %in% end_nodes, "End", 
+                          ifelse(name %in% junction_nodes, "Junction", "Normal"))),
+    size = ifelse(name %in% start_nodes, "Start", 
+                  ifelse(name %in% end_nodes, "End", 
+                         ifelse(name %in% junction_nodes, "Junction", "Normal")))
+  )
+)+
+geom_node_text(aes(label = node_label), size = 3, color = "darkblue", repel = TRUE, na.rm = TRUE) +
+  scale_size_manual(values = c("Start" = 2, "End" = 2, "Junction" = 2, "Normal" = 0.01))+
+  scale_color_manual(values = c("Start" = "green", "End" = "red", "Junction" = "orange", "Normal" = "lightblue")
+  ) +
+  theme_void() +  
+  theme(legend.position = "none") 
+p1
+#getwd()
+#ggsave("plot/R_network.jpg",p1)
+#fwrite(sampled,"data/sampled.csv")
+```
+
+

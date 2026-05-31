@@ -1,0 +1,94 @@
+---
+title: "Return Analysis"
+author: "Mingze Li"
+date: "2015-04-16"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load required libraries
+library(traveltimeCLT)
+library(data.table)
+```
+
+```{r}
+set.seed(12345)
+trips <- fread("data/trips.csv")
+id <- sample(unique(trips$trip), 1000)
+train <- trips[!trips$trip %in% id, ]
+test <- trips[trips$trip %in% id, ]
+timeBin_x_edge <- get_timeBin_x_edges(train)
+```
+
+```{r}
+# sample_route(id,trips,1001)
+sample <- sample_route(id, trips, 1000, timeBin_x_edge, abuse_ratio = 0, lambda = 0)
+pressure_test <- sample_route(id, trips, 1000, timeBin_x_edge, abuse_ratio = 0.1, lambda = 0.1)
+```
+
+```{r}
+plot_CDF_compare(sample[[2]]$real_time, sample[[1]]$dependent_time, "frequency simulation")
+plot_CDF_compare(pressure_test[[2]]$real_time, pressure_test[[1]]$dependent_time, "frequency simulation")
+```
+
+```{r}
+real_price <- price(sample[[2]]$real_time, sample[[2]]$real_length)[, 1]
+simulated_price <- data.table(
+  simulated_price = price(sample[[1]]$dependent_time, sample[[1]]$simulated_length)[1:1000, 1],
+  pressured_price = price(pressure_test[[1]]$dependent_time, pressure_test[[1]]$simulated_length)[, 1]
+)
+```
+
+```{r}
+names(train)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
+train$speed <- exp(train$logspeed)
+train$timeBin <- time_bins_readable(train$entry_time)
+fit <- traveltimeCLT(train)
+test <- trips[trips$trip %in% id, ]
+names(test)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "1", "distance_meters", "linkID")
+names(sample[[3]]) <- c("tripID", "linkID", "entry_time", "distance_meters")
+names(pressure_test[[3]]) <- c("tripID", "linkID", "entry_time", "distance_meters")
+p <- predict(fit, test)
+simulated_p <- predict(fit, sample[[3]])
+pressure_p <- predict(fit, pressure_test[[3]])
+```
+
+```{r}
+start_times <- test[, .(start_time = entry_time[1]), by = tripID]
+simulated_start_time <- (sample[[3]][, .(start_time = entry_time[1]), by = tripID][, 2])
+simulated__start_time <- simulated_start_time[["start_time"]]
+pressure_start_time <- (pressure_test[[3]][, .(start_time = entry_time[1]), by = tripID][, 2])
+pressure_start_time <- pressure_start_time[["start_time"]]
+R <- request_R(p, start_times$start_time, start_times$start_time, sample[[2]]$real_length, 1, risk_free = 0)
+simulated_R <- request_R(simulated_p, simulated__start_time, simulated__start_time, sample[[1]]$simulated_length, 1, risk_free = 0)
+pressure_R <- request_R(pressure_p, pressure_start_time, pressure_start_time, pressure_test[[1]]$simulated_length, 1, risk_free = 0)
+```
+
+```{r}
+K <- request_K(p, start_times$start_time, start_times$start_time, sample[[2]]$real_length, risk_free = 0)
+simulated_K <- request_K(simulated_p, simulated__start_time, simulated__start_time, sample[[1]]$simulated_length, risk_free = 0)
+pressure_K <- request_K(pressure_p, pressure_start_time, pressure_start_time, pressure_test[[1]]$simulated_length, risk_free = 0)
+income <- mean(simulated_R + simulated_K, na.rm = TRUE)
+normal_expand <- real_price
+pressure_expand <- simulated_price$pressured_price
+mean(real_price)
+income
+mean(income - normal_expand) / income * 100
+mean(income - pressure_expand) / income * 100
+sd((income - pressure_expand) / income * 100)
+var((income - pressure_expand) / income * 100)
+```
+
+```{r}
+par(mfrow = c(1, 2))
+plot(density(na.omit(income - normal_expand)), xlab = "income", main = "normal state")
+abline(v = 0, col = "red", lty = 2)
+plot(density(na.omit(income - pressure_expand)), xlab = "income", main = "lambda = 0.6, alpha = 0.6")
+abline(v = 0, col = "red", lty = 2)
+```

@@ -1,0 +1,213 @@
+---
+title: "Table 2"
+author: "Mingze Li"
+date: "2015-06-18"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(traveltimeCLT)
+library(data.table)
+```
+
+```{r}
+trips <- fread("data/trips.csv")
+names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
+trips$speed <- exp(trips$logspeed)
+trips$timeBin <- time_bins_readable(trips$entry_time)
+set.seed(1)
+id <- sample(unique(trips$trip), 10000)
+user_records <- trips[trips$trip %in% id, ]
+user_records
+```
+
+```{r}
+user_data <- user_records[, .(
+    start_time = min(entry_time),
+    end_time = max(entry_time),
+    duration = sum(duration_secs),
+    distance = sum(distance_meters)
+), by = tripID]
+user_data$real_price <- price(user_data$duration, user_data$distance)[, 1]
+user_data
+```
+
+
+
+
+```{r}
+fit_t <- traveltimeCLT(trips, "trip-specific")
+fit_p <- traveltimeCLT(trips, "population")
+pt <- predict(fit_t, user_records)
+pp <- predict(fit_p, user_records)
+pt <- data.table(pt)
+pp <- data.table(pp)
+pt <- pt[, coefD := ETA / sqrt(variance)]
+pp <- pp[, coefD := ETA / sqrt(variance)]
+# if coefD > 30 increase the variance by 4
+# pt[coefD > 30, variance := variance * 4]
+# pp[coefD > 30, variance := variance * 4]
+```
+
+
+```{r}
+Rt1 <- request_R(pt, user_data$start_time, user_data$start_time, user_data$distance, K = 1, risk_free = 0)
+Rt2 <- request_R(pt, user_data$start_time, user_data$start_time, user_data$distance, K = exp(0.05), risk_free = 0)
+Rt3 <- request_R(pt, user_data$start_time, user_data$start_time, user_data$distance, K = exp(0.1), risk_free = 0)
+Rp1 <- request_R(pp, user_data$start_time, user_data$start_time, user_data$distance, K = 1, risk_free = 0)
+Rp2 <- request_R(pp, user_data$start_time, user_data$start_time, user_data$distance, K = exp(0.05), risk_free = 0)
+Rp3 <- request_R(pp, user_data$start_time, user_data$start_time, user_data$distance, K = exp(0.1), risk_free = 0)
+# Rt01 <- request_R(pt, user_data$start_time, user_data$start_time, user_data$distance, K = 0.01, risk_free = 0)
+# Rp01 <- request_R(pp, user_data$start_time, user_data$start_time, user_data$distance, K = 0.01, risk_free = 0)
+Kt1 <- request_K(pt, user_data$distance, discount_factor = 1)
+Kt2 <- request_K(pt, user_data$distance, discount_factor = exp(0.05))
+Kt3 <- request_K(pt, user_data$distance, discount_factor = exp(0.1))
+Kp1 <- request_K(pp, user_data$distance, discount_factor = 1)
+Kp2 <- request_K(pp, user_data$distance, discount_factor = exp(0.05))
+Kp3 <- request_K(pp, user_data$distance, discount_factor = exp(0.1))
+# Kt01 <- request_K(pt, user_data$distance, discount_factor = 0.01)
+# Kp01 <- request_K(pp, user_data$distance, discount_factor = 0.01)
+P <- user_data$real_price
+Pt <- P
+
+if (any(is.na(Rt1))) {
+    # find the NA values
+    na_index <- which(is.na(Rt1))
+    # drop the index from Rt1, Rt2, Rt3, Rp1, Rp2, Rp3, Kt1, Kt2, Kt3, Kp1, Kp2, Kp3, P
+    Rt1 <- Rt1[-na_index]
+    Rt2 <- Rt2[-na_index]
+    Rt3 <- Rt3[-na_index]
+    Kt1 <- Kt1[-na_index]
+    Kt2 <- Kt2[-na_index]
+    Kt3 <- Kt3[-na_index]
+    # Kt01 <- Kt01[-na_index]
+    # Kp01 <- Kp01[-na_index]
+    Pt <- P[-na_index]
+}
+```
+
+```{r}
+print(min(Rt1))
+print(min(Rt2))
+print(min(Rt3))
+print(min(Rp1))
+print(min(Rp2))
+print(min(Rp3))
+```
+
+```{r}
+Model <- c(rep("Trip-Specific", 3), rep("Population", 3))
+Strike <- rep(c(1, exp(0.05), K), 2)
+Percentage_profit <- c(
+    mean((Rt1 - pmax(Pt - Kt1, 0)) / Pt),
+    mean((Rt2 - pmax(Pt - Kt2, 0)) / Pt),
+    mean((Rt3 - pmax(Pt - Kt3, 0)) / Pt),
+    #    mean((Rt01 - pmax(P - Kt01, 0)) / P) * 100,
+    mean((Rp1 - pmax(P - Kp1, 0)) / P),
+    mean((Rp2 - pmax(P - Kp2, 0)) / P),
+    mean((Rp3 - pmax(P - Kp3, 0)) / P)
+    #    mean((Rp01 - pmax(P - Kp01, 0)) / P) * 100
+)
+pct_capture_rate <- c(
+    mean((Rt1 - pmax(Pt - Kt1, 0)) / Rt1),
+    mean((Rt2 - pmax(Pt - Kt2, 0)) / Rt2),
+    mean((Rt3 - pmax(Pt - Kt3, 0)) / Rt3),
+    mean((Rp1 - pmax(P - Kp1, 0)) / Rp1),
+    mean((Rp2 - pmax(P - Kp2, 0)) / Rp2),
+    mean((Rp3 - pmax(P - Kp3, 0)) / Rp3)
+)
+win_rate <- c(
+    mean(Rt1 - pmax(Pt - Kt1, 0) > 0),
+    mean(Rt2 - pmax(Pt - Kt2, 0) > 0),
+    mean(Rt3 - pmax(Pt - Kt3, 0) > 0),
+    mean(Rp1 - pmax(P - Kp1, 0) > 0),
+    mean(Rp2 - pmax(P - Kp2, 0) > 0),
+    mean(Rp3 - pmax(P - Kp3, 0) > 0)
+)
+profit_factor <- c( # sum of profit divided by sum of losses when positive divided by sum of losses when negative
+    sum(ifelse(Rt1 - pmax(Pt - Kt1, 0) > 0, Rt1 - pmax(Pt - Kt1, 0), 0)) / sum(ifelse(Rt1 - pmax(Pt - Kt1, 0) < 0, Rt1 - pmax(Pt - Kt1, 0), 0)),
+    sum(ifelse(Rt2 - pmax(Pt - Kt2, 0) > 0, Rt2 - pmax(Pt - Kt2, 0), 0)) / sum(ifelse(Rt2 - pmax(Pt - Kt2, 0) < 0, Rt2 - pmax(Pt - Kt2, 0), 0)),
+    sum(ifelse(Rt3 - pmax(Pt - Kt3, 0) > 0, Rt3 - pmax(Pt - Kt3, 0), 0)) / sum(ifelse(Rt3 - pmax(Pt - Kt3, 0) < 0, Rt3 - pmax(Pt - Kt3, 0), 0)),
+    sum(ifelse(Rp1 - pmax(P - Kp1, 0) > 0, Rp1 - pmax(P - Kp1, 0), 0)) / sum(ifelse(Rp1 - pmax(P - Kp1, 0) < 0, Rp1 - pmax(P - Kp1, 0), 0)),
+    sum(ifelse(Rp2 - pmax(P - Kp2, 0) > 0, Rp2 - pmax(P - Kp2, 0), 0)) / sum(ifelse(Rp2 - pmax(P - Kp2, 0) < 0, Rp2 - pmax(P - Kp2, 0), 0)),
+    sum(ifelse(Rp3 - pmax(P - Kp3, 0) > 0, Rp3 - pmax(P - Kp3, 0), 0)) / sum(ifelse(Rp3 - pmax(P - Kp3, 0) < 0, Rp3 - pmax(P - Kp3, 0), 0))
+)
+
+Average_profit <- c(
+    mean(Rt1 - pmax(Pt - Kt1, 0)),
+    mean(Rt2 - pmax(Pt - Kt2, 0)),
+    mean(Rt3 - pmax(Pt - Kt3, 0)),
+    #    mean(Rt01 - pmax(P - Kt01, 0)),
+    mean(Rp1 - pmax(P - Kp1, 0)),
+    mean(Rp2 - pmax(P - Kp2, 0)),
+    mean(Rp3 - pmax(P - Kp3, 0))
+    #    mean(Rp01 - pmax(P - Kp01, 0))
+)
+Maximum_Loss <- c(
+    min(Rt1 - pmax(Pt - Kt1, 0)),
+    min(Rt2 - pmax(Pt - Kt2, 0)),
+    min(Rt3 - pmax(Pt - Kt3, 0)),
+    #    min(Rt01 - pmax(P - Kt01, 0)),
+    min(Rp1 - pmax(P - Kp1, 0)),
+    min(Rp2 - pmax(P - Kp2, 0)),
+    min(Rp3 - pmax(P - Kp3, 0))
+    #    min(Rp01 - pmax(P - Kp01, 0))
+)
+Average_premium <- c(
+    mean(Rt1),
+    mean(Rt2),
+    mean(Rt3),
+    #    mean(Rt01),
+    mean(Rp1),
+    mean(Rp2),
+    mean(Rp3)
+    #    mean(Rp01)
+)
+Average_pct_premium_to_P <- c(
+    mean(Rt1 / Pt) * 100,
+    mean(Rt2 / Pt) * 100,
+    mean(Rt3 / Pt) * 100,
+    #    mean(Rt01 / P) * 100,
+    mean(Rp1 / P) * 100,
+    mean(Rp2 / P) * 100,
+    mean(Rp3 / P) * 100
+    #    mean(Rp01 / P) * 100
+)
+Total_trips <- c(
+    length(Rt1),
+    length(Rt2),
+    length(Rt3),
+    #    length(Rt01),
+    length(Rp1),
+    length(Rp2),
+    length(Rp3)
+    #    length(Rp01)
+)
+```
+
+```{r}
+table2 <- data.table(
+    Model = Model,
+    Strike = round(Strike, 3),
+    Win_Rate = round(win_rate, 2),
+    Profit_Factor = round(abs(profit_factor), 2),
+    Capture_Rate = round(pct_capture_rate, 2),
+    Percentage_Profit = round(Percentage_profit, 2),
+    Average_Profit = round(Average_profit, 2),
+    Maximum_Loss = round(Maximum_Loss, 2),
+    Average_Premium = round(Average_premium, 2),
+    Average_PCT_Premium_to_P = round(Average_pct_premium_to_P, 2),
+    Total_Trips = Total_trips
+)
+table2
+```
+
+```{r}
+# latex table
+library(knitr)
+kable(table2, caption = "Table 2: Results of the simulation", format = "latex")
+```

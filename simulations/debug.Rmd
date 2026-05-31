@@ -1,0 +1,124 @@
+---
+title: "Debug"
+author: "Mingze Li 300137754"
+date: "2025-02-21"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#source("traveltimeCLTfunctions.R")
+# devtools::document()
+# remove.packages("traveltimeCLT")
+# devtools::install()
+```
+
+```{r}
+#devtools::install_github("Mingze-Li0625/traveltimeCLT", force = TRUE)
+#setwd("C:/Users/wr/Documents/GitHub/traveltimeCLT")
+#setwd("D:/李明泽/留学/Statistics Master/travel pricing/R-simulation/")
+library(traveltimeCLT)
+library(data.table)
+
+```
+
+
+
+```{r}
+data(trips)
+#names(trips)[c(1,2,5,6,7)]<-c("trip","linkId","duration","length","time")
+trips2=data.table(trips)
+names(trips2)[c(1,2,5,6,7)]<-c("trip","linkId","duration","length","time")
+trips= fread('data/trips.csv')
+trips$time <- as.POSIXct(trips$time)
+#timeBin_x_edges=get_timeBin_x_edges(trips)
+timeBin_x_edges=get_timeBin_x_edges(tripID=trips$trip,time=trips$time,linkId=trips$linkId,length = trips$length)
+View(timeBin_x_edges)
+```
+
+```{r}
+id <- sample(unique(trips$trip),1000)
+on_demand <- OnDemand_simulator(id,trips)
+plot_CDF_compare(on_demand$real_time,on_demand$dependent_time,"dependent data")
+
+```
+
+
+```{r}
+timeBin_x_connections=get_timeBin_x_connections(trips)
+View(timeBin_x_connections)
+```
+
+```{r}
+id_short <- sample(unique(trips$trip),20)
+sampledtrips <- trips[trip %in%id_short, ]
+p=plot_metric_graph(sampledtrips)
+p
+
+```
+
+```{r}
+graphs<-get_metric_graph(timeBin_x_connections)
+x=findRoute(graphs,6494,1,2)
+# all_simple_paths(graphs[[1]],"6494","1",cutoff = ceiling(37*1.1))
+x
+```
+
+```{r}
+x_time=route_time(x$oneway,timeBin_x_connections,time = c("2012/05/09 19:59:30","Weekday","2012/05/09 19:59:30","Weekday" ))
+x_time
+```
+
+```{r}
+route_time(list(c(6494,6497,6495,6498,6499),c(1,2,3,4),c(22,23,24,245),c(1,2,5,7,8,9)),timeBin_x_edges,time = c("2012/05/09 19:59:30","Weekday","2012/05/09 19:59:30","Weekday" ))
+```
+
+```{r}
+x_length=route_length(x$oneway,timeBin_x_connections)
+x_length
+```
+
+```{r}
+route_length(list(c(6494,6497,6495,6498,6499),c(1,2,3,4),c(22,23,24,245),c(1,2,5,7,8,9)),timeBin_x_edges)
+```
+
+```{r}
+price(c(10000,20000),c(100000,200000),4,0.4,0.8,0.03)
+```
+
+```{r}
+mean(price(x_time,x_length)$arrive_price)
+result <- sample_route(id,trips)
+plot_CDF_compare(result[[1]]$real_time,result[[1]]$dependent_time,"dependent data")
+```
+
+```{r}
+train <- trips[!trip%in%id,]
+names(train)[c(2,3,5,7,8)]=c("tripID","entry_time","duration_secs","distance_meters","linkID")
+train$speed=exp(train$logspeed)
+train$timeBin=time_bins_readable(train$entry_time)
+fit <- traveltimeCLT(train)
+```
+
+```{r}
+test <- result[[2]]
+names(test)[c(1,3,4,2)]=c("tripID","entry_time","distance_meters","linkID")
+p=predict(fit, test)
+```
+
+```{r}
+Rprof("profile.out")
+s=similar_route(c(1,1,1),r=2, trips, significance=0.6, model = 't',Ftest_sd = F)
+#similar_route(c(2700,2701,2700),r=2, trips, significance=0.6, model = 't',Ftest_sd = F)
+Rprof(NULL)
+summaryRprof("profile.out")
+#check if s have NAs
+any(is.na(s))
+
+
+```

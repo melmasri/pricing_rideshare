@@ -1,0 +1,116 @@
+---
+title: "Figure 4 right"
+author: "Mingze Li 300137754"
+date: "2025-07-02"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+data <- fread("plot/plot_data/figure4_data_right.csv")
+```
+
+
+```{r}
+# draw CDF comparison plot
+# data <- fread("plot/plot_data/figure4_data_right.csv")
+fontsize <- 4.3
+plot4_right <- ggplot(data) +
+    stat_ecdf(aes(x = real, color = "real_data", linetype = "real_data"), size = 1.2) +
+    stat_ecdf(aes(x = normal_5, color = "normal_5", linetype = "normal_5"), size = 0.75) +
+    stat_ecdf(aes(x = normal_50, color = "normal_50", linetype = "normal_50"), size = 0.75) +
+    stat_ecdf(aes(x = normal_F, color = "normal_5F", linetype = "normal_5F"), size = 0.75) +
+    labs(
+        title = "Empirical CDF Comparison",
+        x = "Total Travel Time (seconds)",
+        y = "Cumulative Probability"
+    ) +
+    coord_cartesian(xlim = c(0, 4000), ylim = c(0, 1)) +
+    scale_color_manual(
+        name = "Models",
+        values = c(
+            "real_data" = "red",
+            "normal_5" = "#e76a10",
+            "normal_50" = "#e9ce00",
+            "normal_5F" = "#0ff1bc"
+        )
+    ) +
+    scale_linetype_manual(
+        name = "Models",
+        values = c(
+            "real_data" = "solid",
+            "normal_5" = "dashed",
+            "normal_50" = "twodash",
+            "normal_5F" = "twodash"
+        )
+    ) +
+    theme(
+        panel.background = element_rect(fill = "white", colour = "black", linewidth = 1),
+        panel.grid = element_line(colour = "white"),
+        panel.border = element_rect(colour = "black", fill = NA, linewidth = 1),
+        legend.position = c(0.98, 0.05),
+        legend.justification = c(1, 0),
+        text = element_text(size = rel(fontsize)),
+        plot.title = element_text(size = rel(fontsize)),
+        legend.text = element_text(size = rel(fontsize)),
+        legend.key = element_rect(fill = "white")
+    )
+plot4_right
+```
+
+```{r}
+# max <- 6000
+# special <- data[real >= max | normal_5 >= max | normal_50 >= max | normal_95 >= max | normal_F >= max | normal_95F >= max | t_5 >= max | t_5F >= max | frequency >= max]
+# data <- data[real <= max & normal_5 <= max & normal_50 <= max & normal_95 <= max & normal_F <= max & normal_95F <= max & t_5 <= max & t_5F <= max & frequency <= max]
+
+
+plot4_right <- ggplot(data) +
+    stat_density(aes(x = real, color = "real_data", linetype = "real_data"), geom = "line", size = 1.2) +
+    stat_density(aes(x = normal_5, color = "normal_5", linetype = "normal_5"), geom = "line", size = 0.8) +
+    stat_density(aes(x = normal_50, color = "normal_50", linetype = "normal_50"), geom = "line", size = 0.8) +
+    stat_density(aes(x = normal_F, color = "normal_5F", linetype = "normal_5F"), geom = "line", size = 0.8) +
+    labs(
+        title = "Empirical PDF Comparison",
+        x = "Total Travel Time (seconds)",
+        y = "Density"
+    ) +
+    scale_color_manual(
+        name = "Models",
+        values = c(
+            "real_data" = "red",
+            "normal_5" = "#e76a10",
+            "normal_50" = "#e9ce00",
+            "normal_5F" = "#0ff1bc"
+        )
+    ) +
+    scale_linetype_manual(
+        name = "Models",
+        values = c(
+            "real_data" = "solid",
+            "normal_5" = "dashed",
+            "normal_50" = "twodash",
+            "normal_5F" = "twodash"
+        )
+    ) +
+    #    coord_cartesian(xlim = c(0, max)) +
+    theme(
+        panel.background = element_rect(fill = "white", colour = "black", linewidth = 1),
+        panel.grid = element_line(colour = "white"),
+        panel.border = element_rect(colour = "black", fill = NA, linewidth = 1),
+        legend.position = c(0.98, 0.5),
+        legend.justification = c(1, 0),
+        text = element_text(size = rel(fontsize)),
+        plot.title = element_text(size = rel(fontsize)),
+        legend.text = element_text(size = rel(fontsize)),
+        legend.key = element_rect(fill = "white")
+    )
+plot4_right
+```

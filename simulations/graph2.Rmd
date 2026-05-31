@@ -1,0 +1,144 @@
+---
+title: "graph2"
+author: "Mingze Li 300137754"
+date: "2025-02-14"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(traveltimeCLT)
+library(data.table)
+library(traveltimeHMM)
+library(doParallel)
+
+library(ggplot2)
+library(ggraph)
+library(tidygraph)
+library(igraph)
+```
+
+```{r}
+trips = fread('data/trips.csv')
+trips$time <- as.POSIXct( trips$time, format = "%Y-%m-%dT%H:%M:%OSZ")
+trips$timeBin<-time_bins_readable(trips$time)
+trips <-na.omit(trips)
+trips[, duration_secs := as.numeric(difftime(shift(time, type = "lead"), time, units = "secs")), by = trip]
+sd_na_is_0<-function(x){
+  x=na.omit(x)
+  if(length(x)==0)return(sd(x))
+  if(length(x)>=2)return(sd(x))
+  else return(0)
+}
+unique(trips$timeBin)
+```
+
+```{r}
+id = sample(unique(trips$trip),20)
+cl <- makeCluster(8)
+registerDoParallel(cl)
+
+sampled <- foreach(trip_id = id, .combine = rbind, .packages = "data.table") %dopar% {trip_links <- trips[trip == trip_id, ]
+  temp_dt <- data.table(linkID = integer(), nextLinkID = integer(), duration = numeric(), timeBin = character())
+  if(length(trip_links$linkId)>1) for (i in 1:(length(trip_links$linkId) - 1)) {
+    current_link <- trip_links$linkId[i]
+    one_way_link <- trip_links$linkId[i + 1]
+    duration <- trip_links$duration_secs[i]
+    timeBin <- trip_links$timeBin[i]
+    temp_dt <- rbind(temp_dt, list(linkID = current_link, nextLinkID = one_way_link,duration = duration, timeBin = timeBin))
+  }else return(data.table())
+  temp_dt
+}
+stopCluster(cl)
+#fwrite(sampled,"data/sampled.csv")
+```
+
+```{r}
+#sampled <- fread('data/sampled.csv')
+edges <- unique(sampled, by = c("linkID", "nextLinkID"))
+
+g <- graph_from_data_frame(edges, directed = TRUE)
+tidy_g <- as_tbl_graph(g)
+
+edge_alpha <- 1
+filtered_trips <- trips[, if (all(trip %in% id)) .SD, by = trip]
+start_nodes <- as.character(filtered_trips[, .( linkId[1]), by = trip]$V1)
+end_nodes <- as.character(filtered_trips[, .( linkId[length(linkId)]), by = trip]$V1)
+junction_nodes <- V(g)[degree(g, mode = "out") > 1 | degree(g, mode = "in") > 1]$name
+node_label <- ifelse(V(g)$name %in% c(junction_nodes,end_nodes,start_nodes), V(g)$name, NA)
+length(end_nodes)
+
+
+paths <- list()
+for (i in 1:length(start_nodes)) {
+    paths <- c(paths, all_simple_paths(g, from = start_nodes[i], to = end_nodes[i]))
+}
+
+shorten_segment <- function(segment) {
+  l<-length(segment)
+  if (l > 6) {
+    new_length <- 5
+    segment <- c(segment[1:new_length],segment[l])
+  }
+  return(segment)
+}
+segmented_paths <- lapply(paths, function(path) {
+  junctions_in_path <- intersect(names(path), junction_nodes)
+  if (length(junctions_in_path) == 0) {
+    return(shorten_segment(path))
+  }
+  segments <- list()
+  start_index <- 1
+  for (junction in junctions_in_path) {
+    end_index <- which(names(path) == junction)
+    segment <- path[start_index:(end_index-1)]
+    segments <- c(segments, list(shorten_segment(segment)))
+    start_index <- end_index
+  }
+  last_segment <- path[start_index:length(path)]
+  segments <- c(segments, list(shorten_segment(last_segment)))
+  return(unlist(segments))
+})
+new_edges <- do.call(rbind, lapply(segmented_paths, function(path) {
+  path_names <- names(path)
+  from <- path_names[-length(path_names)]
+  to <- path_names[-1] 
+  data.frame(from = from, to = to)
+}))
+
+g <- graph_from_data_frame(new_edges, directed = TRUE)
+tidy_g <- as_tbl_graph(g)
+node_label <- ifelse(V(g)$name %in% c(junction_nodes,end_nodes,start_nodes), V(g)$name, NA)
+
+p1<-ggraph(tidy_g, layout = "stress") +
+  geom_edge_link(
+    aes(alpha = edge_alpha), 
+    arrow = arrow(length = unit(1.5, "mm")), 
+    edge_color = "black" 
+  ) +
+  geom_node_point(
+  aes(
+    color = ifelse(name %in% start_nodes, "Start", 
+                   ifelse(name %in% end_nodes, "End", 
+                          ifelse(name %in% junction_nodes, "Junction", "Normal"))),
+    size = ifelse(name %in% start_nodes, "Start", 
+                  ifelse(name %in% end_nodes, "End", 
+                         ifelse(name %in% junction_nodes, "Junction", "Normal")))
+  )
+)+
+geom_node_text(aes(label = node_label), size = 3, color = "darkblue", repel = TRUE, na.rm = TRUE) +
+  scale_size_manual(values = c("Start" = 2, "End" = 2, "Junction" = 2, "Normal" = 0.01))+
+  scale_color_manual(values = c("Start" = "green", "End" = "red", "Junction" = "orange", "Normal" = "lightblue")
+  ) +
+  theme_void() +  
+  theme(legend.position = "none") 
+p1
+#getwd()
+#ggsave("plot/R_network.jpg",p1)
+#fwrite(sampled,"data/sampled.csv")
+```

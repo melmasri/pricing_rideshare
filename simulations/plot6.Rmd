@@ -1,0 +1,123 @@
+---
+title: "Return Analysis 2"
+author: "Mingze Li"
+date: "2015-06-11"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(traveltimeCLT)
+library(data.table)
+library(ggplot2)
+```
+
+```{r}
+trips <- fread("data/trips.csv")
+names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
+trips$speed <- exp(trips$logspeed)
+trips$timeBin <- time_bins_readable(trips$entry_time)
+set.seed(1234)
+id <- sample(unique(trips$trip), 2000)
+user_records <- trips[trips$trip %in% id, ]
+```
+
+```{r}
+user_data <- user_records[, .(
+    start_time = min(entry_time),
+    end_time = max(entry_time),
+    duration = sum(duration_secs),
+    distance = sum(distance_meters)
+), by = tripID]
+user_data$real_price <- price(user_data$duration, user_data$distance)[, 1]
+```
+```{r}
+fit1 <- traveltimeCLT(trips, "trip-specific")
+fit2 <- traveltimeCLT(user_records, "population")
+p1 <- predict(fit1, user_records)
+p2 <- predict(fit2, user_records)
+R1 <- request_R(p1, user_data$start_time, user_data$start_time, user_data$distance, risk_free = 0)
+R2 <- request_R(p2, user_data$start_time, user_data$start_time, user_data$distance, risk_free = 0)
+K1 <- request_K(p1, user_data$start_time, user_data$start_time, user_data$distance, risk_free = 0)
+K2 <- request_K(p2, user_data$start_time, user_data$start_time, user_data$distance, risk_free = 0)
+user_data$payment_trip_specific <- R1 + K1
+user_data$payment_population <- R2 + K2
+user_data$profit_trip_specific <- user_data$payment_trip_specific - user_data$real_price
+user_data$profit_population <- user_data$payment_population - user_data$real_price
+```
+
+```{r}
+# save data
+write.csv(user_data, file = "plot/plot_data/plot6_data.csv", row.names = FALSE)
+```
+```{r}
+fontsize <- 4.3
+breaks <- seq(0, 60000, 5000)
+user_data$dist_group <- cut(
+    user_data$distance,
+    breaks = breaks,
+    include.lowest = TRUE,
+    right = FALSE
+)
+
+
+user_data <- subset(user_data, distance < 60000 & !is.na(dist_group))
+n_groups <- length(levels(user_data$dist_group))
+
+
+ggplot(user_data) +
+    geom_boxplot(
+        aes(
+            x = dist_group,
+            y = profit_population,
+            fill = "Population"
+        ),
+        alpha = 0.5,
+        outlier.colour = "#2682c3",
+        outlier.shape = 19,
+        outlier.alpha = 1
+    ) +
+    geom_boxplot(
+        aes(
+            x = dist_group,
+            y = profit_trip_specific,
+            fill = "Trip-specific"
+        ),
+        alpha = 0.5,
+        outlier.colour = "#ff8b25",
+        outlier.shape = 17,
+        outlier.alpha = 1
+    ) +
+    labs(x = "distance(meter)", y = "profit(CAD)") +
+    scale_fill_manual(
+        name = "Model",
+        values = c("Population" = "#83bce6", "Trip-specific" = "#ff7f0e")
+    ) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    scale_x_discrete(
+        labels = function(x) {
+            sapply(1:n_groups, function(i) {
+                start <- (i - 1) * 5000
+                end <- start + 5000
+                paste0("[", start, ",", end, ")")
+            })
+        }
+    ) +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = rel(fontsize)),
+        plot.title = element_text(size = rel(fontsize)),
+        legend.text = element_text(size = rel(fontsize)),
+        legend.position = c(0.98, 0.98),
+        legend.justification = c(1, 1),
+        legend.background = element_rect(fill = "white", colour = "black"),
+        legend.margin = margin(5, 5, 5, 5),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.grid = element_line(colour = "white")
+    )
+```

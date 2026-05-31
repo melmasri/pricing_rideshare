@@ -1,0 +1,104 @@
+---
+title: "Table 3"
+author: "Mingze Li"
+date: "2015-06-18"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(traveltimeCLT)
+library(data.table)
+```
+
+```{r}
+trips <- fread("data/trips.csv")
+timeBin_x_edges <- get_timeBin_x_edges(trips)
+names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
+trips$speed <- exp(trips$logspeed)
+trips$timeBin <- time_bins_readable(trips$entry_time)
+set.seed(1234)
+id <- sample(unique(trips$trip), 2000)
+test_id <- sample(id, 40)
+train_id <- setdiff(id, test_id)
+user_records <- subset(trips, tripID %in% train_id)
+test_records <- subset(trips, tripID %in% test_id)
+study_records <- subset(trips, !tripID %in% test_id)
+```
+
+```{r}
+user_records[, time_category := ifelse(timeBin %in% c("MorningRush", "EveningRush"), timeBin, "Otherwise")]
+test_records[, time_category := ifelse(timeBin %in% c("MorningRush", "EveningRush"), timeBin, "Otherwise")]
+
+user_data <- user_records[, .(
+    start_time = min(entry_time),
+    end_time = max(entry_time),
+    duration = sum(duration_secs),
+    distance = sum(distance_meters)
+), by = tripID]
+user_data$real_price <- price(user_data$duration, user_data$distance)[, 1]
+test_data <- test_records[, .(
+    start_time = min(entry_time),
+    end_time = max(entry_time),
+    duration = sum(duration_secs),
+    distance = sum(distance_meters)
+), by = tripID]
+test_data$real_price <- price(test_data$duration, test_data$distance)[, 1]
+```
+
+```{r}
+My <- rbinom(30, 2, 2 / 3)
+bk <- sample(c("MorningRush", "EveningRush", "Otherwise"), sum(My) * 10, replace = TRUE)
+rho_k <- sapply(bk, function(x) {
+    user_records[time_category == x, sample(unique(tripID), 1, replace = TRUE)]
+})
+simulated_record <- data.table()
+for (i in 1:length(rho_k)) {
+    new_rows <- cbind(user_records[tripID %in% rho_k[i]], i)
+    simulated_record <- rbind(simulated_record, new_rows)
+}
+simulated_data <- simulated_record[, .(
+    tripID = tripID[1],
+    start_time = min(entry_time),
+    distance = sum(distance_meters)
+), by = i]
+```
+
+```{r}
+names(timeBin_x_edges)[c(1, 2)] <- c("linkID", "timeBin")
+simulated_stats <- simulated_record[, c("timeBin", "linkID", "tripID", "i")]
+simulated_stats <- merge(simulated_stats, timeBin_x_edges, by = c("linkID", "timeBin"), all.x = TRUE)
+simulated_stats <- na.omit(simulated_stats)
+duration_dt <- simulated_stats[, .(
+    duration = mean(replicate(100, sum(exp(mean + sd * qnorm(dependent_uniform(.N, rho = 0.31))))))
+),
+by = i
+]
+simulated_data <- merge(simulated_data, duration_dt, by = "i", all.x = TRUE)
+rm(duration_dt, new_rows)
+```
+
+```{r}
+fit1 <- traveltimeCLT(trips, "trip-specific")
+fit2 <- traveltimeCLT(trips, "population")
+p1 <- predict(fit1, simulated_record)
+p2 <- predict(fit2, simulated_record)
+p1 <- data.table(p1)
+p2 <- data.table(p2)
+p1 <- merge(p1, simulated_data, by = c("tripID"), all.y = TRUE)
+p2 <- merge(p2, simulated_data, by = c("tripID"), all.y = TRUE)
+```
+
+```{r}
+Rt_0 <- request_R(p1, p1$start_time, p1$start_time, p1$distance, risk_free = 0, zeta = 0)
+Rp_0 <- request_R(p2, p2$start_time, p2$start_time, p2$distance, risk_free = 0, zeta = 0)
+Rt_1 <- request_R(p1, p1$start_time, p1$start_time, p1$distance, risk_free = 0, zeta = 0.1)
+Rp_1 <- request_R(p2, p2$start_time, p2$start_time, p2$distance, risk_free = 0, zeta = 0.1)
+Kt <- request_K(p1, p1$start_time, p1$start_time, p1$distance, risk_free = 0)
+Kp <- request_K(p2, p2$start_time, p2$start_time, p2$distance, risk_free = 0)
+P <- mean(test_data$real_price)
+```
+

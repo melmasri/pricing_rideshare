@@ -1,0 +1,89 @@
+---
+title: "Route Finder1"
+author: "Mingze Li 300137754"
+date: "2025-02-14"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(traveltimeCLT)
+library(data.table)
+library(traveltimeHMM)
+library(doParallel)
+library(igraph)
+
+```
+
+```{r}
+trips = fread('data/net_stat.csv')
+net <- unique(trips, by = c("linkID", "nextLinkID"))
+net <- net[,.(linkID,nextLinkID,length)]
+names(net)[3]<-"weight"
+filted_net <- trips[trips$one_way_frequency>0,]
+filted_net <- unique(filted_net, by = c("linkID", "nextLinkID"))
+filted_net <- filted_net[,.(linkID,nextLinkID,length)]
+names(filted_net)[3]<-"weight"
+g1 <- graph_from_data_frame(filted_net, directed = TRUE)
+g2 <- graph_from_data_frame(net, directed = F)
+g1 <- simplify(g1, remove.multiple = TRUE, remove.loops = TRUE)
+g2 <- simplify(g2, remove.multiple = TRUE, remove.loops = TRUE)
+```
+
+```{r}
+remove_duplicate_paths <- function(paths,graph, k) {
+  unique_paths <- list()
+  for (pathset in paths) {
+    path_nodes <-V(graph)$name[pathset]
+      is_duplicate <- any(sapply(unique_paths, function(p) identical(p, path_nodes)))
+      if (!is_duplicate) {
+        unique_paths <- append(unique_paths, list(path_nodes))
+      }
+      if (length(unique_paths) >= k) {
+        break
+      }
+    }
+    return(unique_paths)
+}
+calculate_path_length <- function(graph, pathset) {
+  if (length(pathset) < 1) return(numeric(0))
+  result<-c()
+  for (paths in pathset) {
+    edges <- E(graph, path = paths)
+    result<-c(result,sum(edges$weight, na.rm = TRUE))
+  }
+result
+}
+
+findRoute <- function(start, end,graph,time="Global", k = 1) {
+  start <- as.character(start)
+  end <- as.character(end)
+  paths <- k_shortest_paths(graph, from = start, to = end, k = k, mode = "out")$vpaths
+  paths<-remove_duplicate_paths(paths,graph,k)
+  length<-calculate_path_length(graph,paths)
+  return(list(route = paths,length=length))
+}
+```
+
+```{r}
+findRoute(1,6494,g1,k=3)
+x=findRoute(1,6494,g2,k=3)
+x
+```
+```{r}
+findRoute(6494, 1,g1,k=3)
+findRoute(6494, 1,g2,k=3)
+```
+
+```{r}
+findRoute(15335, 361,g1,k=5)
+findRoute(15335, 361,g2,k=5)
+```
+```{r}
+findRoute(c(1,2,3,4,5,6), c(101,202,303,404,505,606),g1)
+```

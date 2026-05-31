@@ -1,0 +1,136 @@
+---
+title: "Sensitive Test"
+author: "Mingze Li"
+date: "2015-05-11"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(data.table)
+library(ggplot2)
+```
+
+```{r}
+# % Return at Different Pressure Settings
+return_dt <- data.table(
+    abuse_ratio = c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9),
+    lambda_0.1 = c(4.76473, 5.04958, 4.71596, 2.84991, 2.18284, 1.6512, 1.06770, 0.87888, -0.44871, -3.21756),
+    lambda_0.2 = c(6.06275, 3.56516, 3.39372, -5.16797, -0.08512, -1.56226, -3.31014, -3.11505, -7.32223, -11.0714),
+    lambda_0.3 = c(5.24833, 2.26873, -0.91624, -1.39935, -2.96998, -5.21708, -7.03568, -9.12327, -14.2363, -21.0129),
+    lambda_0.4 = c(3.98635, 0.80165, -0.39472, -2.91047, -5.94576, -9.86191, -12.1923, -17.9295, -20.8831, -29.6657),
+    lambda_0.5 = c(3.87400, 0.63042, -2.10115, -4.50369, -8.90094, -12.1673, -16.0381, -18.7089, -27.3653, -42.2083),
+    lambda_0.6 = c(3.09900, 0.32567, -4.01964, -8.44136, -11.9264, -16.6746, -21.7277, -24.4353, -34.3353, -46.1438),
+    lambda_0.7 = c(3.60528, 0.53412, -6.47903, -9.31158, -14.5637, -19.7869, -22.9624, -28.1903, -40.7257, -52.5469),
+    lambda_0.8 = c(3.26188, -0.52581, -7.55500, -12.7652, -16.0634, -22.5785, -26.8280, -32.6669, -46.5174, -60.6900),
+    lambda_0.9 = c(4.09142, 0.82856, -8.57397, -13.7512, -19.8439, -25.1562, -30.4616, -37.9605, -52.6035, -68.1493)
+)
+# % Standard Deviation at Different Pressure Settings
+sd_dt <- data.table(
+    abuse_ratio = c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9),
+    lambda_0.1 = c(43.7538, 41.5666, 42.0065, 42.8553, 42.7181, 43.8668, 43.3496, 44.2436, 45.6755, 50.1521) / sqrt(1000),
+    lambda_0.2 = c(41.9749, 42.7653, 41.3599, 198.625, 42.8371, 43.3251, 44.8455, 43.7528, 47.9238, 53.2982) / sqrt(1000),
+    lambda_0.3 = c(42.9851, 42.3916, 50.0412, 45.7494, 42.4351, 44.0311, 44.2513, 44.6331, 51.1880, 56.9215) / sqrt(1000),
+    lambda_0.4 = c(42.8058, 41.5718, 40.8170, 42.2755, 42.0963, 54.3918, 58.2550, 118.6425, 51.5654, 61.8381) / sqrt(1000),
+    lambda_0.5 = c(42.9635, 42.1541, 40.7934, 40.0070, 41.7231, 40.4179, 43.2834, 42.5524, 50.6880, 188.7836) / sqrt(1000),
+    lambda_0.6 = c(43.8749, 40.3778, 41.5486, 42.4104, 42.7635, 41.4917, 53.6246, 42.8549, 50.2566, 56.8045) / sqrt(1000),
+    lambda_0.7 = c(42.3506, 39.8282, 40.8640, 41.1597, 40.7469, 40.8893, 39.8253, 39.5828, 49.8207, 54.0856) / sqrt(1000),
+    lambda_0.8 = c(43.4310, 39.6847, 41.1322, 40.9887, 37.4769, 39.5600, 39.7511, 39.6098, 46.4905, 50.0125) / sqrt(1000),
+    lambda_0.9 = c(44.2391, 40.3015, 40.0298, 40.2006, 39.0265, 37.0917, 37.8211, 37.5083, 43.3250, 45.8065) / sqrt(1000)
+)
+# write sd_dt to an excel file
+# write.csv(sd_dt, "sd_dt.csv")
+```
+
+```{r}
+return_long <- melt(return_dt,
+    id.vars = "abuse_ratio",
+    variable.name = "lambda", value.name = "return"
+)
+sd_long <- melt(sd_dt,
+    id.vars = "abuse_ratio",
+    variable.name = "lambda", value.name = "sd"
+)
+
+# Merge two datasets
+plot_data <- merge(return_long, sd_long, by = c("abuse_ratio", "lambda"))
+
+# Add boundary constraints
+y_min <- -150
+y_max <- 100
+plot_data[, `:=`(
+    adjusted_ymin = pmax(return - 1 * sd, y_min),
+    adjusted_ymax = pmin(return + 1 * sd, y_max)
+)]
+
+# Plotting with C.I.
+ggplot(plot_data, aes(x = as.numeric(gsub("lambda_", "", lambda)), y = return, group = factor(abuse_ratio))) +
+    geom_ribbon(aes(ymin = adjusted_ymin, ymax = adjusted_ymax, fill = factor(abuse_ratio)),
+        alpha = 0.4
+    ) +
+    geom_line(aes(color = factor(abuse_ratio)), linewidth = 0.8) +
+    # geom_hline(yintercept = 0, linetype = "dashed", color = "yellow") +
+    labs(
+        title = "Return with plus or minus 1 SD Confidence Interval",
+        x = "Lambda Value",
+        y = "Return (%)",
+        color = "Abuse Ratio",
+        fill = "Abuse Ratio"
+    ) +
+    theme_minimal() +
+    scale_x_continuous(breaks = seq(0.1, 0.9, by = 0.1)) +
+    scale_color_viridis_d(option = "plasma") +
+    scale_fill_viridis_d(option = "plasma") +
+    guides(
+        color = guide_legend(nrow = 2, title.position = "top"),
+        fill = guide_legend(nrow = 2, title.position = "top")
+    ) +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(hjust = 0.5),
+        legend.key.size = unit(0.5, "cm")
+    ) +
+    scale_x_continuous(breaks = seq(0, 0.9, by = 0.1)) +
+    # scale_y_continuous(limits = c(y_min, y_max)) +
+    # coord_cartesian(ylim = c(y_min, y_max)) +
+    scale_color_viridis_d(option = "magma", begin = 0.1, end = 0.7) +
+    scale_fill_viridis_d(option = "magma", begin = 0.1, end = 0.7) +
+    guides(
+        color = guide_legend(nrow = 2),
+        fill = guide_legend(nrow = 2)
+    ) +
+    guides(
+        color = guide_legend(nrow = 2, ncol = 5),
+        fill = guide_legend(nrow = 2, ncol = 5)
+    )
+```
+
+```{r}
+# plot without C.I.
+ggplot(plot_data, aes(x = as.numeric(gsub("lambda_", "", lambda)), y = return, group = factor(abuse_ratio))) +
+    geom_line(aes(color = factor(abuse_ratio)), linewidth = 1.2) +
+    # geom_hline(yintercept = 0, linetype = "dashed", color = "yellow") +
+    labs(
+        title = "Return without Confidence Interval by Abuse Ratio",
+        x = "Lambda Value",
+        y = "Return (%)",
+        color = "Abuse Ratio"
+    ) +
+    theme_minimal() +
+    scale_x_continuous(breaks = seq(0.1, 0.9, by = 0.1)) +
+    scale_color_viridis_d(option = "plasma") +
+    guides(
+        color = guide_legend(nrow = 2, title.position = "top")
+    ) +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(hjust = 0.5),
+        legend.key.size = unit(0.5, "cm")
+    ) +
+    guides(color = guide_legend(nrow = 2, ncol = 5))
+```

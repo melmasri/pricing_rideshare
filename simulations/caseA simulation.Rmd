@@ -1,0 +1,155 @@
+---
+title: "Case A simulation"
+author: "Mingze Li 300137754"
+date: "2025-01-04"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+non_congestedmu=log(35)
+non_congestedsigma=log(5)
+non_congested_prob=0.8
+congestedmu=log(5)
+congestedsigma=log(10)
+
+get_speed <- function(r=1){
+  i=1;result=c()
+  congested=rbinom(r,1,(1-non_congested_prob))
+  while (i<=r) {
+    if(congested[1]==1)speed<-rlnorm(1,congestedmu,congestedsigma)
+    else speed<-rlnorm(1,non_congestedmu,non_congestedsigma)
+    result=c(result,speed)
+    i<-i+1
+  }
+  result<- list(result,congested)
+  names(result)<-c("speed","conjested")
+  return(result)
+}
+
+
+```
+replication of figure 1 in the Predictive Inference For Travel Time on Transportation Network.
+```{r}
+set.seed(11111)
+car1<-seq(0,100,1)
+car1_speed<-get_speed(100)
+car1_t<-c(0,car1_speed$speed)
+car1_t_sum<-sum(car1_t)
+car1_t_sum/60
+car2_t_sum<-0
+
+```
+
+```{r}
+while (abs(car2_t_sum-car1_t_sum)>=1) {
+  car2<-seq(0,100,1)
+  car2_speed<-get_speed(100)
+  car2_t<-c(0,car2_speed$speed)
+  car2_t_sum<-sum(car2_t)
+
+}
+set.seed(NULL)
+```
+
+```{r}
+car1_cum_t <- cumsum(car1_t)/60
+car2_cum_t <- cumsum(car2_t)/60
+distance <- seq(0, 10, by = 0.1) 
+edgeind <- 30
+
+
+data <- data.frame(distance = distance,
+  travel_time1 = car1_cum_t,
+  congested1 = c(0,car1_speed$conjested),
+  travel_time2 = car2_cum_t,
+  congested2 = c(0,car2_speed$conjested)
+)
+congested1_points <- data %>% filter(congested1 == 1)
+congested2_points <- data %>% filter(congested2 == 1)
+
+ggplot() +
+  geom_line(data = data, 
+            aes(x = travel_time1, y = distance, color = "Car 1", linetype = "Car 1")) +
+  geom_line(data = data, 
+            aes(x = travel_time2, y = distance, color = "Car 2", linetype = "Car 2")) +
+  geom_point(data = congested1_points, aes(x = travel_time1, y = distance), 
+             color = "red", shape = 1, size = 2) +
+  geom_point(data = congested2_points, aes(x = travel_time2, y = distance), 
+             color = "red", shape = 1, size = 2) +
+  labs(x = "Travel time (minutes)", y = "Distance (km)", color = " ", linetype = " ") +
+  theme_light() +
+  theme(legend.position="none")+
+  scale_color_manual(values = c("Car 1" = "black", "Car 2" = "black")) +
+  scale_linetype_manual(values = c("Car 1" = "solid", "Car 2" = "dashed")) +
+  geom_segment(aes(x = travel_time1, y = distance, yend =0, xend=data$travel_time1[edgeind]),data = subset(data[edgeind,])) +
+  geom_segment(aes(x = travel_time2, y = distance, yend =0, xend=data$travel_time2[edgeind]),data = subset(data[edgeind,])) +
+  geom_label(data = subset(data[edgeind,]),aes(x = c(travel_time1), y = c(0), label = list('tau[1](e)')),parse=TRUE)+
+  geom_label(data = subset(data[edgeind,]),aes(x = c(travel_time2), y = c(0), label = list('tau[2](e)')),parse=TRUE)
+
+```
+
+
+when set time=speed, the simulation result always produce a similar result as the one in the paper?
+```{r}
+non_congestedmu=log(35)
+non_congestedsigma=log(5)
+non_congested_prob=0.8
+congestedmu=log(5)
+congestedsigma=log(10)
+
+num_rides <-1000
+average_travel_times_1 <- c()
+average_travel_times_10 <- c()
+average_travel_times_50 <- c()
+average_travel_times_100 <- c()
+
+for (i in 1:num_rides) {
+  #time <- c(rep(100,1000)/get_speed(1000)$speed)
+  time <- c(get_speed(1000)$speed)
+  average_travel_times_100<-c(average_travel_times_100,sum(time[1:1000])/1000)
+  average_travel_times_50<-c(average_travel_times_50,sum(time[1:500])/500)
+  average_travel_times_10<-c(average_travel_times_10,sum(time[1:100])/100)
+  average_travel_times_1<-c(average_travel_times_1,sum(time[1:10])/10)
+}
+
+
+
+```
+
+```{r}
+
+data_density <- data.frame(
+  Average_Travel_Time = c(average_travel_times_100, average_travel_times_50, 
+                          average_travel_times_10, average_travel_times_1),
+  Route_Distance = factor(
+    rep(c("100 km", "50 km", "10 km", "1 km"), each = num_rides),
+    levels = c("100 km", "50 km", "10 km", "1 km")
+  )
+)
+
+ggplot(data_density, aes(x = Average_Travel_Time, color = Route_Distance, linetype = Route_Distance)) +
+  coord_cartesian(xlim = c(0, 200)) +
+  geom_density(size = 1, adjust = 1.5) +
+  labs(
+    x = "Average travel time per edge (seconds)",
+    y = "Empirical density",
+    color = "Route distance",
+    linetype = "Route distance"
+  ) +
+  theme_light() +
+  scale_color_manual(values = c("black", "black", "black", "black")) +
+  scale_linetype_manual(values = c("solid", "dashed", "dotted", "dotdash")) +
+  guides(linetype = guide_legend(override.aes = list(linetype = c("solid", "dashed", "dotted", "dotdash"))))
+
+```

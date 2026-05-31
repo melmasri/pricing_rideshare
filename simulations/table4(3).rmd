@@ -1,0 +1,188 @@
+---
+title: "Table 4"
+author: "Mingze Li"
+date: "2015-08-10"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(traveltimeCLT)
+library(data.table)
+```
+
+```{r}
+trips <- fread("data/trips.csv")
+trips2 <- fread("data/trips.csv")
+names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
+trips$speed <- exp(trips$logspeed)
+trips$timeBin <- time_bins_readable(trips$entry_time)
+
+trips_record <- trips[, .(
+    entry_time = rep(entry_time[1], .N),
+    timeBin,
+    logspeed,
+    tripID,
+    linkID,
+    distance_meters
+), tripID]
+trips_stat <- trips[, .(
+    start_time = entry_time[1],
+    distance = sum(distance_meters),
+    duration_secs = max(entry_time) - min(entry_time),
+    real_price = price(max(entry_time) - min(entry_time), sum(distance_meters))[, 1],
+    timeBin = timeBin[1]
+), tripID]
+```
+
+```{r}
+# find R and K for all trips in trips.csv.
+fit <- traveltimeCLT(trips, "trip-specific")
+pt <- predict(fit, trips_record)
+Rt <- request_R(pt, trips_stat$start_time, trips_stat$start_time, trips_stat$distance, K = 0.9, risk_free = 0, zeta = 0)
+Kt <- request_K(pt, trips_stat$distance, discount_factor = 0.9)
+trips_stat$Rt <- Rt
+trips_stat$Kt <- Kt
+# trips_stat$Rt <- -pmin(mean(Kt) - trips_stat$real_price, 0)
+trips_stat <- na.omit(trips_stat) # remove trips with NA values in Rt and Kt.
+```
+
+```{r}
+# hyperparameters of the simulation.
+# repeat time: how many times to repeat the simulation.
+repeat_time <- 10
+# number of riders: how many riders to simulate.
+rider <- 10
+# test size: how many trips to simulate for each rider.
+test_size <- 40
+quantile <- c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+# quantile <- c(0)
+M <- seq(0, floor(test_size * 0.5), floor(test_size * 0.1))
+# M <- c(0)
+set.seed(1234)
+
+pressure_data <- data.table(
+    repeat_time = rep(1:repeat_time, each = length(quantile) * max(rider) * length(M)),
+    quantile = rep(rep(quantile, each = max(rider)), repeat_time * length(M)),
+    rider = rep(1:rider, length(M) * length(quantile) * repeat_time),
+    M = rep(rep(M, each = length(quantile) * max(rider)), repeat_time)
+)
+
+pressure_data <- pressure_data[, .(
+    i = seq(1, test_size, 1)
+), by = .(repeat_time, quantile, rider, M)]
+
+# sample from trips_stat with replacement, the distance limited from quantile to 1.
+sampled_stat <- pressure_data[,
+    {
+        id <- sample.int(nrow(trips_stat), test_size, replace = FALSE)
+        test <- trips_stat[id]
+        train <- trips_stat[-id]
+        samples <- .SD[,
+            {
+                q_value <- quantile(test$distance, probs = .BY$quantile)
+                abuse_trips <- trips_stat[distance >= q_value]
+                abuse_sample <- abuse_trips[sample.int(nrow(abuse_trips), size = .BY$M, replace = TRUE)]
+                normal_sample <- test[sample.int(test_size, size = test_size - .BY$M, replace = TRUE)]
+
+                # combine the abuse sample and normal sample, then add some columns.
+                combined <- rbindlist(list(
+                    abuse_sample[, .(tripID, Kt, timeBin)],
+                    normal_sample[, .(tripID, Kt, timeBin)]
+                ))[, `:=`(
+                    # Rt = rep(mean(-pmin(mean(train$Kt) - trips_stat$real_price, 0)), test_size),
+                    Rt = train[sample.int(nrow(train), size = test_size, replace = TRUE)]$Rt
+                )]
+
+                cbind(.SD, combined)
+            },
+            by = .(quantile, rider, M)
+        ]
+
+        samples
+    },
+    by = .(repeat_time)
+]
+pressure_data <- merge(pressure_data, sampled_stat, by = c("repeat_time", "quantile", "rider", "M", "i"), all.x = TRUE)
+pressure_data$timeBin <- NULL
+```
+
+```{r}
+# simulate the travel time for each trip
+# obtain the frequence of trips and timebin group
+unique_trips <- sampled_stat[
+    ,
+    .(repeat_time = .N),
+    .(tripID, timeBin)
+]
+
+# get the linkID in each trip
+unique_trips <- merge(unique_trips, trips[, .(tripID, linkID)], by = "tripID", allow.cartesian = TRUE)
+# use timebin x edges simulation to obtain the predicted travel time
+timebin_x_edges <- get_timeBin_x_edges(trips2)
+setnames(timebin_x_edges, old = c("timeBin", "linkId"), new = c("timeBin", "linkID"))
+unique_trips <- merge(unique_trips, timebin_x_edges, by = c("timeBin", "linkID"), all.x = TRUE)
+unique_trips$old_timeBin <- unique_trips$timeBin
+global_dt <- timebin_x_edges[timeBin == "Global", ]
+na_index <- which(is.na(unique_trips$mean))
+cols <- c("timeBin", "mean", "sd", "frequency", "length", "ID")
+if (length(na_index) > 0) {
+    # 创建临时数据表包含需要替换的linkID
+    temp_dt <- unique_trips[na_index, .(linkID)]
+
+    # 执行连接操作（指定on参数）
+    replacement <- global_dt[temp_dt, on = .(linkID), ..cols]
+
+    # 执行替换
+    unique_trips[na_index, (cols) := replacement]
+}
+unique_trips <- na.omit(unique_trips)
+# simulate the travel time for each trip
+sampled_travel_time <- unique_trips[,
+    {
+        time <- numeric(.SD$repeat_time[1])
+        for (i in 1:.SD$repeat_time[1]) {
+            time[i] <- sum(exp(mean + qnorm(dependent_uniform(nrow(.SD))) * sd))
+        }
+        distance <- sum(length)
+        .(time = time, distance = rep(distance, .SD$repeat_time[1]), index = seq(1, .SD$repeat_time[1]))
+    },
+    by = .(old_timeBin, tripID)
+]
+setnames(sampled_travel_time, old = c("old_timeBin"), new = c("timeBin"))
+sampled_stat <- sampled_stat[,
+    index := 1:.N,
+    by = .(tripID, timeBin)
+]
+sampled_stat <- merge(sampled_stat, sampled_travel_time, by = c("tripID", "timeBin", "index"), no.dup = FALSE)
+sampled_stat$real_price <- price(sampled_stat$time, sampled_stat$distance)[, 1]
+pressure_data <- merge(pressure_data, sampled_stat[, c("repeat_time", "quantile", "rider", "M", "i", "real_price")], by = c("repeat_time", "quantile", "M", "rider", "i"), all.x = TRUE)
+```
+
+```{r}
+# calculate the profit
+profit <- pressure_data[, .(
+    revenue = sum(Rt),
+    cost = sum(-pmin(Kt - real_price, 0)),
+    profit = sum(Rt) - sum(-pmin(Kt - real_price, 0))
+), by = .(repeat_time, M, quantile, rider)]
+cost_stats_table <- profit[, .(
+    profit_over_revenue = mean(profit / cost),
+    sd = sqrt(var(profit / cost, na.rm = TRUE) / sqrt(test_size)),
+    dollar_mean = mean(profit, na.rm = TRUE)
+), by = .(M, quantile)]
+# table(sampled_data$real_price)
+```
+
+```{r}
+# reshape the data to draw the table
+table4 <- dcast(cost_stats_table, M ~ quantile, value.var = "profit_over_revenue")
+table5 <- dcast(cost_stats_table, M ~ quantile, value.var = "sd")
+table6 <- dcast(cost_stats_table, M ~ quantile, value.var = "dollar_mean")
+table4
+table5
+table6
+```

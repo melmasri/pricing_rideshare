@@ -1,0 +1,232 @@
+---
+title: "Figure 4 right"
+author: "Mingze Li 300137754"
+date: "2025-07-02"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(traveltimeCLT)
+library(data.table)
+library(ggplot2)
+```
+
+```{r}
+trips <- fread("data/trips.csv")
+t_5 <- fread("data/similarity_route_t5.csv")
+t_5F <- fread("data/similarity_route_t5F.csv")
+set.seed(1234)
+id <- sample(unique(trips$trip), 2000)
+normal <- similar_route(id, trips, sigma_n = 0, significance = 0.05)
+normal_50 <- similar_route(id, trips, sigma_n = 0, significance = 0.5)
+normal_95 <- similar_route(id, trips, sigma_n = 0, significance = 0.95)
+normal_F <- similar_route(id, trips, sigma_n = 0, significance = 0.05, Ftest_sd = TRUE)
+normal_95F <- similar_route(id, trips, sigma_n = 0, significance = 0.95, Ftest_sd = TRUE)
+real <- subset(trips, trip %in% id)
+```
+
+```{r}
+fr <- pressure_test1(id, trips)
+```
+
+```{r}
+timebine_x_edges <- get_timeBin_x_edges(trips)
+real1 <- real[,
+  .(
+    timeBin = time_bins_readable(time),
+    linkId = linkId
+  ),
+  by = trip
+]
+real1 <- merge(real1, timebine_x_edges, by = c("timeBin", "linkId"), all.x = TRUE)
+real1 <- na.omit(real1)
+
+real1_stat <- real1[
+  ,
+  .(duration = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))), trip
+]
+normal[, .(
+  expection = sum(exp(mean)),
+  noise = sum(sd)
+)]
+```
+
+```{r}
+# get duration per trip in all datasets
+t_5_duration <- t_5[, .(
+  duration = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))
+), trip]
+t_5F_duration <- t_5F[, .(
+  duration = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))
+), trip]
+normal_duration <- normal[, .(
+  duration = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))
+), trip]
+normal_50_duration <- normal_50[, .(
+  duration = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))
+), trip]
+normal_95_duration <- normal_95[, .(
+  duration = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))
+), trip]
+real_duration <- real[, .(
+  duration = max(time) - min(time)
+), by = trip]
+normal_F_duration <- normal_F[, .(
+  duration = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))
+), trip]
+normal_95F_duration <- normal_95F[, .(
+  duration = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))
+), trip]
+# merge datasets into one
+data <- data.table(
+  trip = real_duration$trip,
+  real = real_duration$duration
+)
+data2 <- data.table(
+  trip = normal_duration$trip,
+  normal_5 = normal_duration$duration,
+  normal_50 = normal_50_duration$duration,
+  normal_95 = normal_95_duration$duration,
+  normal_F = normal_F_duration$duration,
+  normal_95F = normal_95F_duration$duration,
+  t_5 = t_5_duration$duration,
+  t_5F = t_5F_duration$duration,
+  frequency = fr[[1]][, 1]
+)
+data <- merge(data, data2, by = "trip", all = TRUE)
+
+# save the data into a csv file
+# write.csv(data, "plot/plot_data/figure4_data_right.csv")
+```
+
+```{r}
+# draw CDF comparison plot
+# data <- fread("plot/plot_data/figure4_data_right.csv")
+fontsize <- 4.3
+plot4_right <- ggplot(data) +
+  stat_ecdf(aes(x = real, color = "real_data", linetype = "real_data"), size = 1.2) +
+  stat_ecdf(aes(x = normal_5, color = "normal_5", linetype = "normal_5"), size = 0.75) +
+  stat_ecdf(aes(x = normal_50, color = "normal_50", linetype = "normal_50"), size = 0.75) +
+  stat_ecdf(aes(x = normal_95, color = "normal_95", linetype = "normal_95"), size = 0.75) +
+  stat_ecdf(aes(x = normal_F, color = "normal_5F", linetype = "normal_5F"), size = 0.75) +
+  stat_ecdf(aes(x = normal_95F, color = "normal_95F", linetype = "normal_95F"), size = 0.75) +
+  stat_ecdf(aes(x = t_5, color = "t_5", linetype = "t_5"), size = 0.75) +
+  stat_ecdf(aes(x = t_5F, color = "t_5F", linetype = "t_5F"), size = 0.75) +
+  stat_ecdf(aes(x = frequency, color = "frequency", linetype = "frequency"), size = 0.75) +
+  labs(
+    title = "Empirical CDF Comparison",
+    x = "Total Travel Time (seconds)",
+    y = "Cumulative Probability"
+  ) +
+  coord_cartesian(xlim = c(0, 4000), ylim = c(0, 1)) +
+  scale_color_manual(
+    name = "Models",
+    values = c(
+      "real_data" = "red",
+      "normal_5" = "#e76a10",
+      "normal_50" = "#e9ce00",
+      "normal_95" = "#67d606",
+      "normal_5F" = "#0ff1bc",
+      "normal_95F" = "#063ab2",
+      "t_5" = "#8d0aeb",
+      "t_5F" = "#da4a9e",
+      "frequency" = "#55424fa8"
+    )
+  ) +
+  scale_linetype_manual(
+    name = "Models",
+    values = c(
+      "real_data" = "solid",
+      "normal_5" = "dashed",
+      "normal_50" = "twodash",
+      "normal_95" = "longdash",
+      "normal_5F" = "twodash",
+      "normal_95F" = "dotdash",
+      "t_5" = "dotted",
+      "t_5F" = "dashed",
+      "frequency" = "longdash"
+    )
+  ) +
+  theme(
+    panel.background = element_rect(fill = "white", colour = "black", linewidth = 1),
+    panel.grid = element_line(colour = "white"),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 1),
+    legend.position = c(0.98, 0.05),
+    legend.justification = c(1, 0),
+    text = element_text(size = rel(fontsize)),
+    plot.title = element_text(size = rel(fontsize)),
+    legend.text = element_text(size = rel(fontsize)),
+    legend.key = element_rect(fill = "white")
+  )
+plot4_right
+```
+
+```{r}
+max <- 6000
+special <- data[real >= max | normal_5 >= max | normal_50 >= max | normal_95 >= max | normal_F >= max | normal_95F >= max | t_5 >= max | t_5F >= max | frequency >= max]
+data <- data[real <= max & normal_5 <= max & normal_50 <= max & normal_95 <= max & normal_F <= max & normal_95F <= max & t_5 <= max & t_5F <= max & frequency <= max]
+
+
+plot4_right <- ggplot(data) +
+  stat_density(aes(x = real, color = "real_data", linetype = "real_data"), geom = "line", size = 1.2) +
+  stat_density(aes(x = normal_5, color = "normal_5", linetype = "normal_5"), geom = "line", size = 0.8) +
+  stat_density(aes(x = normal_50, color = "normal_50", linetype = "normal_50"), geom = "line", size = 0.8) +
+  stat_density(aes(x = normal_95, color = "normal_95", linetype = "normal_95"), geom = "line", size = 0.8) +
+  stat_density(aes(x = normal_F, color = "normal_5F", linetype = "normal_5F"), geom = "line", size = 0.8) +
+  stat_density(aes(x = normal_95F, color = "normal_95F", linetype = "normal_95F"), geom = "line", size = 0.8) +
+  stat_density(aes(x = t_5, color = "t_5", linetype = "t_5"), geom = "line", size = 0.8) +
+  stat_density(aes(x = t_5F, color = "t_5F", linetype = "t_5F"), geom = "line", size = 0.8) +
+  stat_density(aes(x = frequency, color = "frequency", linetype = "frequency"), geom = "line", size = 0.8) +
+  labs(
+    title = "Empirical PDF Comparison",
+    x = "Total Travel Time (seconds)",
+    y = "Density"
+  ) +
+  scale_color_manual(
+    name = "Models",
+    values = c(
+      "real_data" = "red",
+      "normal_5" = "#e76a10",
+      "normal_50" = "#e9ce00",
+      "normal_95" = "#67d606",
+      "normal_5F" = "#0ff1bc",
+      "normal_95F" = "#063ab2",
+      "t_5" = "#8d0aeb",
+      "t_5F" = "#da4a9e",
+      "frequency" = "#55424fa8"
+    )
+  ) +
+  scale_linetype_manual(
+    name = "Models",
+    values = c(
+      "real_data" = "solid",
+      "normal_5" = "dashed",
+      "normal_50" = "twodash",
+      "normal_95" = "longdash",
+      "normal_5F" = "twodash",
+      "normal_95F" = "dotdash",
+      "t_5" = "dotted",
+      "t_5F" = "dashed",
+      "frequency" = "longdash"
+    )
+  ) +
+  coord_cartesian(xlim = c(0, max)) +
+  theme(
+    panel.background = element_rect(fill = "white", colour = "black", linewidth = 1),
+    panel.grid = element_line(colour = "white"),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 1),
+    legend.position = c(0.98, 0.5),
+    legend.justification = c(1, 0),
+    text = element_text(size = rel(fontsize)),
+    plot.title = element_text(size = rel(fontsize)),
+    legend.text = element_text(size = rel(fontsize)),
+    legend.key = element_rect(fill = "white")
+  )
+plot4_right
+```

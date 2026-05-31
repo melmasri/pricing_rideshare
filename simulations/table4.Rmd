@@ -1,0 +1,178 @@
+---
+title: "Table 4"
+author: "Mingze Li"
+date: "2015-07-02"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(traveltimeCLT)
+library(data.table)
+```
+
+```{r}
+test_size <- 40 # number of trips for test set
+trips <- fread("data/trips.csv")
+trips2 <- fread("data/trips.csv")
+names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
+trips$speed <- exp(trips$logspeed)
+trips$timeBin <- time_bins_readable(trips$entry_time)
+set.seed(1234)
+id <- sample(unique(trips$trip), test_size)
+user_records <- trips[trips$tripID %in% id, ]
+```
+
+```{r}
+user_records[, time_category := ifelse(timeBin %in% c("MorningRush", "EveningRush"), timeBin, "Otherwise")]
+simulation_record <- user_records[, .(
+    distance_meters,
+    logspeed,
+    linkID,
+    entry_time = as.POSIXct(rep(runif(1, min = min(entry_time), max = max(entry_time)), .N))
+), by = tripID]
+user_data <- simulation_record[, .(
+    distance = sum(distance_meters),
+    start_time = min(entry_time)
+), by = tripID]
+```
+```{r}
+rider <- 1:100
+M <- seq(0, floor(test_size * 0.5), floor(test_size * 0.1))
+quantile <- c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+# produce data table with M and quantile as groups, and every group contains all riders
+pressure_data <- data.table(
+    M = rep(M, each = length(quantile) * max(rider)),
+    quantile = rep(quantile, each = max(rider)),
+    rider = rep(rider, length(M) * length(quantile))
+)
+# for each row, repeat it for test_size times
+pressure_data <- pressure_data[, .(
+    i = seq(1, test_size, 1)
+), by = .(M, quantile, rider)]
+# sample from user_data with replacement, the distance limited from quantile to 1.
+sampled_data <- pressure_data[,
+    {
+        q_value <- quantile(user_data$distance, probs = quantile)
+        abuse_trips <- user_data[distance >= q_value]
+        abuse_sample <- abuse_trips[sample(1:nrow(abuse_trips), size = M, replace = TRUE)]
+        normal_sample <- user_data[sample(1:nrow(user_data), size = test_size - M, replace = TRUE)]
+        sampled <- rbind(abuse_sample, normal_sample)
+        cbind(.SD, sampled)
+    },
+    by = .(quantile, rider, M)
+]
+sampled_data$timeBin <- sample(c("EveningNight", "EveningRush", "Weekday", "MorningRush", "Weekendday"),
+    nrow(sampled_data),
+    replace = TRUE, prob = c(1, 1, 1, 1, 1)
+)
+```
+
+```{r}
+# obtain the edges in each trip
+sampled_trips <- merge(sampled_data, trips[, .(tripID, linkID)], by = c("tripID"), allow.cartesian = TRUE)
+# use timebin x edges simulation to obtain the predicted travel time
+timebin_x_edges <- get_timeBin_x_edges(trips2)
+setnames(timebin_x_edges, old = c("timeBin", "linkId"), new = c("timeBin", "linkID"))
+sampled_trips <- merge(sampled_trips, timebin_x_edges, by = c("timeBin", "linkID"), all.x = TRUE)
+sampled_trips$old_timeBin <- sampled_trips$timeBin
+# use the Global timebin in timebin x edges to replace the NA in unique_trips
+names(unique_trips)
+names(timebin_x_edges)
+global_dt <- timebin_x_edges[timeBin == "Global", ]
+na_index <- which(is.na(sampled_trips$mean))
+cols <- c("timeBin", "mean", "sd", "frequency", "length", "ID")
+if (length(na_index) > 0) {
+    # 创建临时数据表包含需要替换的linkID
+    temp_dt <- sampled_trips[na_index, .(linkID)]
+
+    # 执行连接操作（指定on参数）
+    replacement <- global_dt[temp_dt, on = .(linkID), ..cols]
+
+    # 执行替换
+    sampled_trips[na_index, (cols) := replacement]
+}
+sampled_trips <- na.omit(sampled_trips)
+# simulate the travel time for each trip
+sampled_travel_time <- sampled_trips[, .(
+    time = sum(exp(mean + qnorm(dependent_uniform(.N)) * sd))
+),
+by = .(quantile, rider, M, i)
+]
+# merge the simulated travel time with unique_trips
+sampled_data <- merge(sampled_data, sampled_travel_time, by = c("quantile", "rider", "M", "i"), all.x = TRUE)
+sampled_data$real_price <- price(sampled_data$time, sampled_data$distance)[, 1]
+```
+
+```
+multipler <- 1 # indicate how many times the simulation should be repeated
+My <- test_size * multipler
+bk <- sample(c("MorningRush", "EveningRush", "Otherwise"), sum(My) * 1, replace = TRUE)
+rho_k <- user_records[.(bk = bk),
+    on = .(time_category = bk),
+    .(rep(sample(unique(tripID), 1, replace = TRUE), 1)),
+    by = .EACHI
+]$V1
+temp_dt <- data.table(tripID = rho_k, i = seq_along(rho_k))
+simulated_record <- user_records[temp_dt,
+    on = .(tripID),
+    nomatch = 0,
+    allow.cartesian = TRUE
+]
+rm(temp_dt)
+names(simulated_record)[c(2, ncol(simulated_record))] <- c("trip", "tripID")
+start_time <- runif(max(simulated_record$tripID), min = min(trips$entry_time), max = max(trips$entry_time))
+start_time <- as.POSIXct(start_time)
+simulated_record$entry_time <- start_time[simulated_record$tripID]
+simulated_data <- simulated_record[, .(
+    trip = unique(trip),
+    start_time = min(entry_time),
+    distance = sum(distance_meters),
+    duration = sum(duration_secs)
+), by = tripID]
+```
+
+
+
+```{r}
+fit1 <- traveltimeCLT(trips, "trip-specific")
+fit2 <- traveltimeCLT(trips, "population")
+p1 <- predict(fit1, simulation_record)
+p2 <- predict(fit2, simulation_record)
+p1 <- data.table(p1)
+p2 <- data.table(p2)
+p1 <- merge(p1, user_data, by = c("tripID"), all.y = TRUE)
+p2 <- merge(p2, user_data, by = c("tripID"), all.y = TRUE)
+```
+
+```{r}
+Rt_0 <- request_R(p1, p1$start_time, p1$start_time, p1$distance, K = 0.9, risk_free = 0, zeta = 0)
+Kt <- request_K(p1, p1$distance, discount_factor = 0.9)
+charge <- data.table(Rt_0 = Rt_0, Kt = Kt, tripID = p1$trip)
+sampled_data <- merge(sampled_data, unique(charge, by = "tripID"), by = "tripID", all.x = TRUE, )
+profit <- sampled_data[, .(
+    profit = sum(Rt_0) + sum(pmin(Kt - real_price, 0)),
+    expand = sum((real_price))
+), by = .(M, quantile, rider)]
+cost_stats_table <- profit[, .(
+    pct_mean = mean((profit) / expand * test_size, na.rm = TRUE),
+    variance = var(profit, na.rm = TRUE) / sqrt(test_size),
+    dollar_mean = mean(profit, na.rm = TRUE)
+), by = .(M, quantile)]
+# table(sampled_data$real_price)
+```
+
+
+```{r}
+# reshape the data to draw the table
+table4 <- dcast(cost_stats_table, M ~ quantile, value.var = "pct_mean")
+table5 <- dcast(cost_stats_table, M ~ quantile, value.var = "variance")
+table6 <- dcast(cost_stats_table, M ~ quantile, value.var = "dollar_mean")
+table4
+table5
+table6
+```
+
