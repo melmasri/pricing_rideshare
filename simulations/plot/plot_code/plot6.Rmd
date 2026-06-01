@@ -12,10 +12,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(ggplot2)
+print(getwd())
 ```
 
 ```{r}
-user_data <- read.csv("plot/plot_data/plot6_data.csv")
+user_data <- read.csv("simulations/plot/plot_data/plot6_data.csv")
 ```
 
 ```{r}
