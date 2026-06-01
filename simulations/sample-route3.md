@@ -1,27 +1,19 @@
----
-title: "sample route3"
-author: "Mingze Li 300137754"
-date: "2025-03-15"
-output:
-  github_document: default
----
+sample route3
+================
+Mingze Li 300137754
+2025-03-15
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
+``` r
 #source('traveltimeCLTfunctions.R')
 library(traveltimeCLT)
 library(data.table)
 ```
 
-
-```{r}
+``` r
 trips <- fread('data/trips.csv')
 ```
 
-```{r}
+``` r
 id <- sample(unique(trips$trip),1000)
 #id <- seq(1:1000)
 sampled_1000_trips <- trips[trip %in% id, c("trip", "linkId", "time")]
@@ -34,14 +26,14 @@ train = trips[!trips$trip %in% id,]
 edge_x_timeBin = get_timeBin_x_edges(train)
 ```
 
-```{r}
+``` r
 observed_edge_num <- sampled_1000_trips[, .(len = .N), by = trip]
 simulated_edge_num <- sampled_1000_trips[, .(len = sample(observed_edge_num$len,1,T)), by = trip]
 simulated_data <- simulated_edge_num[, .(trip = rep(trip,len)), by = trip]
 simulated_data <- simulated_edge_num[, .(trip = rep(trip,len)), by = trip]
 ```
 
-```{r}
+``` r
 start_times <- sampled_1000_trips[, .(start_time = time[1]), by = trip]
 simulated_start_times <- start_times[
   sample(.N, 1000, replace = TRUE), start_time]
@@ -50,8 +42,7 @@ simulated_data <- simulated_data[,timeBin:=simulated_start_times[which(trip[1]==
 simulated_data[,1]=NULL
 ```
 
-```{r}
-
+``` r
 simulated_data<-simulated_data[,  sampled_linkId := {
   current_edges <- edge_x_timeBin[timeBin == .BY$timeBin]
   sample(current_edges$linkId, size = .N, prob = current_edges$frequency, replace = TRUE)
@@ -77,54 +68,110 @@ simulated_result <- simulated_data[, {
 
 sampled_time$simulation <- simulated_result[,2]
 sampled_length$simulation <- simulated_result[,3]
-
 ```
 
-```{r}
+``` r
 plot_CDF_compare(sampled_time$real_time,sampled_time$simulation,"frequency simulation")
 ```
 
-```{r}
+![](sample-route3_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+
+``` r
 plot_CDF_compare(sampled_length$real_length,sampled_length$simulation,"global edge number simulation","total length","CDF of length",60000)
 ```
 
-```{r}
+![](sample-route3_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+
+``` r
 sampled_price<-data.table(trip=simulated_result$trip,real_price=price(sampled_time$real_time,sampled_length$real_length)[,1],simulated_price=price(sampled_time$simulation,sampled_length$simulation)[,1])
 plot_CDF_compare(sampled_price$real_price,sampled_price$simulated_price," simulated price","price","CDF of price",100)
 ```
 
-```{r}
+![](sample-route3_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
+``` r
 names(train)[c(2,3,5,7,8)]=c("tripID","entry_time","duration_secs","distance_meters","linkID")
 train$speed=exp(train$logspeed)
 train$timeBin=time_bins_readable(train$entry_time)
 fit <- traveltimeCLT(train, lag = 1)
+```
+
+    ## Warning in traveltimeCLT(train, lag = 1): 4 trips have less than 1 observation,
+    ## and will not be used to estimate autocorrelations, or residual variance
+    ## parameters
+
+``` r
 test = trips[trips$trip %in% id,]
 names(test)[c(2,3,5,7,8)]=c("tripID","entry_time","1","distance_meters","linkID")
 p=predict(fit, test)
 fit2 <- traveltimeCLT(train, lag = 1, model = 'population')
 p2=predict(fit2, test)
-
 ```
 
-```{r}
+``` r
 R1=request_R(p,start_times$start_time-300,start_times$start_time,sampled_length$real_length,1,risk_free=0)
 R2=request_R(p2,start_times$start_time-300,start_times$start_time,sampled_length$real_length,1,risk_free=0)
 all(R1==R2)
+```
+
+    ## [1] FALSE
+
+``` r
 all(p==p2)
+```
+
+    ## [1] FALSE
+
+``` r
 all(R1>0)
+```
+
+    ## [1] TRUE
+
+``` r
 #all(R1==R2,na.rm = T)
 #all(p==p2,na.rm = T)
 #which(is.na(p$variance)==T)
-
 ```
 
-
-```{r}
+``` r
 plot(sampled_length$real_length,R1,pch = 16,cex = 0.6)
+```
+
+![](sample-route3_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+
+``` r
 plot(sampled_price$real_price,R1,pch = 16,cex = 0.6)
+```
+
+![](sample-route3_files/figure-gfm/unnamed-chunk-12-2.png)<!-- -->
+
+``` r
 plot(sampled_time$real_time,R1,xlim = c(0, 8000),pch = 16,cex = 0.6)
+```
+
+![](sample-route3_files/figure-gfm/unnamed-chunk-12-3.png)<!-- -->
+
+``` r
 plot(p$ETA,R1,xlim = c(0, 8000),pch = 16,cex = 0.6)
+```
+
+![](sample-route3_files/figure-gfm/unnamed-chunk-12-4.png)<!-- -->
+
+``` r
 plot(R1,R2,pch = 16,cex = 0.6)
+```
+
+![](sample-route3_files/figure-gfm/unnamed-chunk-12-5.png)<!-- -->
+
+``` r
 plot_CDF_compare(sampled_time$real_time,p$ETA,"CLT model expectation")
+```
+
+![](sample-route3_files/figure-gfm/unnamed-chunk-12-6.png)<!-- -->
+
+``` r
 plot(density(na.omit(R1)))
 ```
+
+![](sample-route3_files/figure-gfm/unnamed-chunk-12-7.png)<!-- -->

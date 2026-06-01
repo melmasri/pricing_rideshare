@@ -1,19 +1,14 @@
----
-title: "Table 3"
-author: "Mingze Li"
-date: "2015-06-18"
-output:
-  github_document: default
----
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-```{r}
+Table 3
+================
+Mingze Li
+2015-06-18
+
+``` r
 library(traveltimeCLT)
 library(data.table)
 ```
 
-```{r}
+``` r
 trips <- fread("data/trips.csv")
 timeBin_x_edges <- get_timeBin_x_edges(trips)
 names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
@@ -28,7 +23,7 @@ test_records <- subset(trips, tripID %in% test_id)
 study_records <- subset(trips, !tripID %in% test_id)
 ```
 
-```{r}
+``` r
 user_records[, time_category := ifelse(timeBin %in% c("MorningRush", "EveningRush"), timeBin, "Otherwise")]
 test_records[, time_category := ifelse(timeBin %in% c("MorningRush", "EveningRush"), timeBin, "Otherwise")]
 
@@ -48,7 +43,7 @@ test_data <- test_records[, .(
 test_data$real_price <- price(test_data$duration, test_data$distance)[, 1]
 ```
 
-```{r}
+``` r
 My <- rbinom(30, 2, 2 / 3)
 bk <- sample(c("MorningRush", "EveningRush", "Otherwise"), sum(My) * 10, replace = TRUE)
 rho_k <- sapply(bk, function(x) {
@@ -66,7 +61,7 @@ simulated_data <- simulated_record[, .(
 ), by = i]
 ```
 
-```{r}
+``` r
 names(timeBin_x_edges)[c(1, 2)] <- c("linkID", "timeBin")
 simulated_stats <- simulated_record[, c("timeBin", "linkID", "tripID", "i")]
 simulated_stats <- merge(simulated_stats, timeBin_x_edges, by = c("linkID", "timeBin"), all.x = TRUE)
@@ -80,8 +75,15 @@ simulated_data <- merge(simulated_data, duration_dt, by = "i", all.x = TRUE)
 rm(duration_dt, new_rows)
 ```
 
-```{r}
+``` r
 fit1 <- traveltimeCLT(trips, "trip-specific")
+```
+
+    ## Warning in traveltimeCLT(trips, "trip-specific"): 4 trips have less than 1
+    ## observation, and will not be used to estimate autocorrelations, or residual
+    ## variance parameters
+
+``` r
 fit2 <- traveltimeCLT(trips, "population")
 p1 <- predict(fit1, simulated_record)
 p2 <- predict(fit2, simulated_record)
@@ -91,7 +93,7 @@ p1 <- merge(p1, simulated_data, by = c("tripID"), all.y = TRUE)
 p2 <- merge(p2, simulated_data, by = c("tripID"), all.y = TRUE)
 ```
 
-```{r}
+``` r
 Rt_0 <- request_R(p1, p1$start_time, p1$start_time, p1$distance, risk_free = 0, zeta = 0)
 Rp_0 <- request_R(p2, p2$start_time, p2$start_time, p2$distance, risk_free = 0, zeta = 0)
 Rt_1 <- request_R(p1, p1$start_time, p1$start_time, p1$distance, risk_free = 0, zeta = 0.1)
@@ -100,4 +102,3 @@ Kt <- request_K(p1, p1$distance)
 Kp <- request_K(p2, p2$distance)
 P <- mean(test_data$real_price)
 ```
-

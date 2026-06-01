@@ -44,3 +44,10 @@ profile.out
 Thumbs.db
 .idea/
 .vscode/
+
+
+# --- Cursor ---
+.cursor/
+
+# --- HTML ---
+*.html

@@ -517,7 +517,26 @@ Because of the seasonal (weekly) traffic pattern illustrated in Figure~\ref{fig:
 
 A test set of trips is sampled at random, but sequentially. That is, if removing a trip from the data results in an edge$\times$traffic-bin with {no observations}, then the trip is not removed. After this process is carried out, 2,000 trips are set aside (851 AM-rush stratum, 741 PM-rush, and 408 Non-rush), with the remaining 17,967 trips being the training data. We classify a trip into a bin if all trip-edges are travelled within that bin; otherwise, the speed data for those trips are used for traffic estimation, but not trip analysis.
 
-
+\begin{figure}[h!tbp]
+    \centering
+    \includegraphics[width=0.45\textwidth]{img/visit_likelihood.png}
+    \includegraphics[width=0.45\textwidth]{img/edges_per_ride.png}\\[4pt]
+    \includegraphics[width=0.45\textwidth]{img/edge_mean_logdur.png}
+    \includegraphics[width=0.45\textwidth]{img/edge_sd_logdur.png}
+    \caption{Descriptive statistics of the edge $\times$ time-bin representation in QCD.
+    (Top left) Empirical visit likelihood of edge $\times$ time-bin states, sorted in
+    decreasing order: a small fraction of states accounts for most observed traffic,
+    motivating the frequency-weighted edge sampling in~\eqref{eq:route_sampling}.
+    (Top right) Distribution of the number of edges per trip, supporting the
+    route-length randomization $\mathrm{Normal}[n,\tau]$ in~\eqref{eq:route_sampling}
+    and the large-$n_\path$ regime of
+    Lemmas~\ref{lem:population-distribution}--\ref{lem:route-predictive}.
+    (Bottom left) Average log travel time per state, approximately flat across states.
+    (Bottom right) Standard deviation of log travel time per state, which grows for
+    rarer (higher-index) states with smaller sample sizes.}
+    \label{fig:edge-timebin-descriptive}
+\end{figure}
+ 
 
 \section{Data Analysis}
 \subsection{Outline}
@@ -532,16 +551,25 @@ Figure~\ref{fig:fidelity_traveltime}(left) showcases the empirical cumulative di
 \begin{figure}[h!tbp]
     \centering
     \includegraphics[width=0.45\linewidth]{img/sampled travel times.png}
-    \includegraphics[width=0.45\linewidth]{img/sampled travel times.png}
-    \caption{(Left) Comparing the empirical cumulative distribution of the 2000 test trips, our proposed travel time sampling methods, and the HMM model of~\cite[Algo. 2]{woodard2017predicting}. (Right - placeholder) Route sampling method.}
+    \includegraphics[width=0.45\linewidth]{img/route_sampling_fidelity.png}
+    \caption{(Left) Comparing the empirical cumulative distribution of the 2000 test trips, our proposed travel time sampling methods, and the HMM model of~\cite[Algo.~2]{woodard2017predicting}. (Right) Route-varied travel time simulation via~\eqref{eq:route_sampling} under normal and $t$-based edge matching at significance levels $0.05$, $0.50$, and $0.95$.}
     \label{fig:fidelity_traveltime}
 \end{figure}
 
 For every travel time sampling method, we additionally vary the observed route of a test trip using~\eqref{eq:route_sampling}. That is, given a trip, we select the set of statistically similar edges $\times$ time bins, following~\eqref{eq:similar-edges}. With this set we sample 5 routes using~\eqref{eq:route_sampling}, and for each sampled route we sample, and average, 1000 travel times from~\eqref{eq:travel_time_sampling}. The travel times for those routes are then averaged to produce a single travel time estimate for the given test trip. The population version~\eqref{eq:travel_time_sampling-population} is route-invariant, as it only dependent on distance, i.e.~the sampled $n'$. The HMM method is omitted here since it does not provide a way to sample routes. 
 
 
-Figure~\ref{fig:fidelity_traveltime}(right) showcases the empirical cumulative distribution of the sampled travel times alongside the 2000 test trips, when the route is varied as well for different values of $\tau = \cbr{0.1, 1, 2}$. High fidelity is observed for $\tau = ?$, and similarity, the higher the order the higher the sampling fidelity. 
+Figure~\ref{fig:fidelity_traveltime}(right) showcases the empirical cumulative distribution of the sampled travel times alongside the 2000 test trips when routes are resampled via~\eqref{eq:route_sampling} with $\tau = 0$ in~\eqref{eq:route_sampling} (i.e.\ no route-length perturbation beyond similar-edge resampling). High fidelity is observed for normal edge matching with $F$-test standard-deviation selection at the $5\%$ significance level; similarly, the $t$-based and frequency-weighted variants track the empirical curve closely, while loosening the similarity threshold degrades fidelity.
 
+
+\begin{figure}[h!tbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{img/fidelity_fulldep.png}
+    \caption{Empirical CDF of realized versus simulated trip travel time using the
+    full-order dependent sampler~\eqref{eq:travel_time_sampling} over 1000 QCD trips;
+    the two distributions are nearly indistinguishable.}
+    \label{fig:fidelity-fulldep}
+\end{figure}
 
 \subsection{Profit and loss calculation}
 We mimic real-world scenarios\footnote{Extracted from Uber Inc pricing webpage for Quebec City, Canada.} for profit and loss analysis by setting $C_0 = 3.17$CAD, $C_1=0.31$CAD/min and $C_2=0.9$CAD/km for in~\eqref{eq:european-knock-in} for QCD. We calculate the profit as 
@@ -652,24 +680,37 @@ Figure~\ref{fig:profit_loss} (right) show the theoretical profit breakdown of ou
 \label{fig:profit_loss}
 \end{figure}
 
-Table~\ref{tab:strike-metrics} illustrate important assessments of different model types. [to finish]
+Table~\ref{tab:strike-metrics} reports guarantee performance across strike prices.
+As the strike rises from the expected price ($\times 1$) to a 10\% markup
+($\times e^{0.1}$), the guarantee triggers less often and the share of profitable
+trips increases from 0.75 to 0.92 for the population model and from 0.67 to 0.95 for
+the trip-specific model, while the average premium falls correspondingly. The premium
+is modest throughout, between 0.4\% and 4.4\% of the trip price. Consistent with
+Figure~\ref{fig:route-specific-R}, the trip-specific premium is roughly half the
+population premium at every strike (for example, 2.15\% versus 4.43\% at $\times 1$),
+reflecting the tighter variance obtained by conditioning on the route. Both models
+remain profitable on average (profit factor $>1$), but the population model carries a
+larger downside, with a worst-case single-trip loss near \$$29$ against \$$22$ for the
+trip-specific model.
 \begin{table}[h!]
     \centering
-    \caption{Model assessment for the trip-specific and the population models under different strike prices. Profit is in CAD}
-    \begin{tabular}{l|l|c| c | c}
-    Model & Strike $P_\path(\pstart, t_0)$   & \% profitable & Average profit & Maximum loss\\
+    \caption{On-demand price-guarantee performance under different strike prices,
+    with $r=0$ and $\zeta=0$, over 10{,}000 trips. Profit and premium in CAD;
+    profit factor is the ratio of total gains to total losses.}
+    \begin{tabular}{l l c c c c c}
     \hline
-    Population & $\times 1$   &  & &  \\
-    & $\times e^{0.05}$    &  & &  \\
-     & $\times e^{0.1}$    &  & &  \\
-    Trip-specific & $\times 1$   &  & &  \\
-    & $\times e^{0.05}$    &  & &  \\
-     & $\times e^{0.1}$    &  & &  \\
+    Model & Strike & \% profitable & Avg.\ profit & Max.\ loss & Profit factor & Premium/$P$ (\%) \\
+    \hline
+    Population    & $\times 1$        & 0.75 & 0.18 & $-28.79$ & 1.39 & 4.43 \\
+                  & $\times e^{0.05}$ & 0.84 & 0.11 & $-27.58$ & 1.41 & 2.35 \\
+                  & $\times e^{0.1}$  & 0.92 & 0.04 & $-25.88$ & 1.36 & 1.11 \\
+    Trip-specific & $\times 1$        & 0.67 & 0.04 & $-21.85$ & 1.12 & 2.15 \\
+                  & $\times e^{0.05}$ & 0.87 & 0.03 & $-20.73$ & 1.23 & 0.73 \\
+                  & $\times e^{0.1}$  & 0.95 & 0.05 & $-19.36$ & 1.99 & 0.36 \\
+    \hline
     \end{tabular}
     \label{tab:strike-metrics}
 \end{table}
-
-x 
 
 \subsection{Discount memberships}
 Consider the case of a monthly membership~\ref{membership} with a 10\% discount on-demand rides. Setting $K = P_\path(\pstart,t_1)e^{-\zeta}$ in~\eqref{eq:ride-cost}, where $P_\path(\pstart t_1)$ is the expected price at (start time, location) = $(t_1, \pstart)$, with cutoff threshold at $\zeta = \cbr{0,0.1}$. 
@@ -697,16 +738,27 @@ Figure~\ref{fig:profit_loss_discount} showcases the profit and loss analysis of 
 \label{fig:profit_loss_discount}
 \end{figure}
 
+Table~\ref{tab:discount-metrics} shows the effect of bundling a 10\% discount
+($K = 0.9\,P$) into the membership. The discount reverses the ranking observed in the
+on-demand case: the population model remains slightly profitable, with an average
+return of $2.7$--$2.9\%$, whereas the thinner trip-specific premium no longer covers
+the discounted guarantee and turns marginally loss-making, with an average return of
+$-0.4$ to $-0.5\%$. Introducing a non-zero cutoff $\zeta = 0.1$ lowers the premium
+charged to the rider but also erodes the provider's margin and deepens the worst-case
+loss, since fewer overruns are recovered.
 \begin{table}[h!]
     \centering
-    \caption{Model assessment for the trip-specific and the population models under different . Profit is in CAD}
-    \begin{tabular}{l|l|c| c | c}
-    Model & Cutoff rate $\zeta$   & \% profitable & Average profit & Maximum loss\\
+    \caption{Discount-membership performance with $K = 0.9\,P$ under different cutoff
+    thresholds $\zeta$, over 100 trips. Profit and premium in CAD; return in \%.}
+    \begin{tabular}{l l c c c c}
     \hline
-  Population  & $0$    &  & &  \\
-     & $-0.1$    &  & &  \\
-  Trip-specific & $0$    &  & &  \\
-     & $-0.1$    &  & &  \\
+    Model & Cutoff $\zeta$ & Avg.\ \% return & Avg.\ profit & Max.\ loss & Premium/$P$ (\%) \\
+    \hline
+    Population    & $0$   & $2.86$  & $0.09$  & $-8.41$ & 11.42 \\
+                  & $0.1$ & $2.71$  & $-0.03$ & $-9.28$ &  9.73 \\
+    Trip-specific & $0$   & $-0.45$ & $-0.23$ & $-6.90$ & 10.49 \\
+                  & $0.1$ & $-0.53$ & $-0.36$ & $-7.99$ &  7.90 \\
+    \hline
     \end{tabular}
     \label{tab:discount-metrics}
 \end{table}
@@ -762,13 +814,18 @@ Ridership behaviour can change under discounted prices, for example, a rider mig
 \subsection{Commuter memberships}
 Consider the case of 30 commuter ride membership package~\ref{membership}. Fixed at a specific hour of day for a whole month. The start and end locations are fixed and known. Let $K$ be the promised maximum price. 
 
-Here we construct a counterfactual rider by sample uniformly a single trip from the 2000 test trips. Consequently, we randomize it route 29 times and for each route we sample a travel time. This constitute 30 commuter trips, each with a slightly a different route an travel time. We repeat this process 100 times, without replacement, resulting to 100 different counterfactual riders. 
+Here we construct a counterfactual rider by sample uniformly a single trip from the 2000 test trips. Consequently, we randomize it route 29 times and for each route we sample a travel time. This constitute 30 commuter trips, each with a slightly a different route an travel time. We repeat this process 100 times, without replacement, resulting to 100 different counterfactual riders.
 
-For each 
-
-
-
-
+For each counterfactual rider we compute the realized price of all 30 commuter trips
+and the membership premium $\memebership(t, 30)$ from~\eqref{eq:membership-price},
+holding origin--destination fixed and averaging over the 29 randomized routes and
+their sampled travel times. The per-rider profit is the collected membership price
+minus the sum of realized trip costs. Repeating over the 100 counterfactual riders
+yields the distribution of provider profit reported in Table~[X], separately for the
+trip-specific and population models. Because the route and start hour are fixed and
+only mild route randomization is applied, the premium is substantially tighter than in
+the discount-membership case.
+% TODO: insert the commuter-membership numbers/table once that run is available.
 
 
 \section{Discussion} \label{sec:discussion}

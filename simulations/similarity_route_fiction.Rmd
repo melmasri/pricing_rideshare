@@ -14,19 +14,19 @@ library(data.table)
 ```
 
 ```{r}
-trips <- fread("data/trips.csv")
+trips <- fread("simulations/data/trips.csv")
 set.seed(1234)
 id <- sample(unique(trips$trip), 2000)
-Rprof("profile.out")
+#Rprof("profile.out")
 t_5 <- similar_route(id, trips, sigma_n = 0, model = "t", significance = 0.05)
 t_5F <- similar_route(id, trips, sigma_n = 0, model = "t", significance = 0.05, Ftest_sd = TRUE)
 # similar_route(c(2700,2701), trips,r=5, significance=0.05)
-Rprof(NULL)
-summaryRprof("profile.out")
+#Rprof(NULL)
+#summaryRprof("profile.out")
 # check if s have NAs
 any(is.na(t_5F))
 
-write.csv(t_5, "data/similarity_route_t5.csv")
-write.csv(t_5F, "data/similarity_route_t5F.csv")
+write.csv(t_5, "simulations/data/similarity_route_t5.csv")
+write.csv(t_5F, "simulations/data/similarity_route_t5F.csv")
 ```
 

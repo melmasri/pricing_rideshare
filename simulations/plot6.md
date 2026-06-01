@@ -1,22 +1,15 @@
----
-title: "Return Analysis 2"
-author: "Mingze Li"
-date: "2015-06-11"
-output:
-  github_document: default
----
+Return Analysis 2
+================
+Mingze Li
+2015-06-11
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
+``` r
 library(traveltimeCLT)
 library(data.table)
 library(ggplot2)
 ```
 
-```{r}
+``` r
 trips <- fread("data/trips.csv")
 names(trips)[c(2, 3, 5, 7, 8)] <- c("tripID", "entry_time", "duration_secs", "distance_meters", "linkID")
 trips$speed <- exp(trips$logspeed)
@@ -26,7 +19,7 @@ id <- sample(unique(trips$trip), 2000)
 user_records <- trips[trips$trip %in% id, ]
 ```
 
-```{r}
+``` r
 user_data <- user_records[, .(
     start_time = min(entry_time),
     end_time = max(entry_time),
@@ -35,8 +28,16 @@ user_data <- user_records[, .(
 ), by = tripID]
 user_data$real_price <- price(user_data$duration, user_data$distance)[, 1]
 ```
-```{r}
+
+``` r
 fit1 <- traveltimeCLT(trips, "trip-specific")
+```
+
+    ## Warning in traveltimeCLT(trips, "trip-specific"): 4 trips have less than 1
+    ## observation, and will not be used to estimate autocorrelations, or residual
+    ## variance parameters
+
+``` r
 fit2 <- traveltimeCLT(user_records, "population")
 p1 <- predict(fit1, user_records)
 p2 <- predict(fit2, user_records)
@@ -50,11 +51,12 @@ user_data$profit_trip_specific <- user_data$payment_trip_specific - user_data$re
 user_data$profit_population <- user_data$payment_population - user_data$real_price
 ```
 
-```{r}
+``` r
 # save data
 write.csv(user_data, file = "plot/plot_data/plot6_data.csv", row.names = FALSE)
 ```
-```{r}
+
+``` r
 fontsize <- 4.3
 breaks <- seq(0, 60000, 5000)
 user_data$dist_group <- cut(
@@ -120,3 +122,5 @@ ggplot(user_data) +
         panel.grid = element_line(colour = "white")
     )
 ```
+
+![](plot6_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->

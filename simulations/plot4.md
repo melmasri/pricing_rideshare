@@ -1,27 +1,64 @@
----
-title: "On-Demand"
-author: "Mingze Li 300137754"
-date: "2025-02-04"
-output:
-  github_document: default
----
+On-Demand
+================
+Mingze Li 300137754
+2025-02-04
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
+``` r
 library(mvtnorm)
 library(traveltimeCLT)
 library(data.table)
 library(dplyr)
+```
+
+    ## 
+    ## Attaching package: 'dplyr'
+
+    ## The following objects are masked from 'package:data.table':
+    ## 
+    ##     between, first, last
+
+    ## The following objects are masked from 'package:stats':
+    ## 
+    ##     filter, lag
+
+    ## The following objects are masked from 'package:base':
+    ## 
+    ##     intersect, setdiff, setequal, union
+
+``` r
 library(ggplot2)
 library(traveltimeHMM)
+```
+
+    ## 
+    ## Attaching package: 'traveltimeHMM'
+
+    ## The following objects are masked from 'package:traveltimeCLT':
+    ## 
+    ##     rules2timebins, time_bins, time_bins_functional,
+    ##     time_bins_readable, to7daybins
+
+``` r
 library(lubridate)
+```
+
+    ## 
+    ## Attaching package: 'lubridate'
+
+    ## The following objects are masked from 'package:data.table':
+    ## 
+    ##     hour, isoweek, isoyear, mday, minute, month, quarter, second, wday,
+    ##     week, yday, year
+
+    ## The following objects are masked from 'package:base':
+    ## 
+    ##     date, intersect, setdiff, union
+
+``` r
 library(patchwork)
 ```
 
-```{r}
+``` r
 log_no_0 <- function(x) {
   l <- length(x)
   result <- c()
@@ -45,7 +82,7 @@ sd_na_is_0 <- function(x) {
 
 ## Sample data
 
-```{r}
+``` r
 trips <- fread("data/trips.csv")
 trips$time <- as.POSIXct(trips$time, format = "%Y-%m-%dT%H:%M:%OSZ")
 trips$timeBin <- time_bins_readable(trips$time)
@@ -72,7 +109,8 @@ sampled_trips <- data.frame(sampled_trips)
 ```
 
 ## Non-dependence model
-```{r}
+
+``` r
 non_dependent_simulator <- function(edges, rho = 0.31) {
   l <- length(edges)
   U <- runif(l)
@@ -87,7 +125,7 @@ travel_time <- data.frame(sampled_time)
 travel_time$non_dependent_time <- non_dependent_time$simulated_time
 ```
 
-```{r}
+``` r
 plot1 <- ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "sampled data")) +
   stat_ecdf(aes(x = non_dependent_time, color = "non dependent data")) +
@@ -114,9 +152,11 @@ plot1 <- ggplot(travel_time) +
 plot1
 ```
 
+![](plot4_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+
 ## Full Dependent Model
 
-```{r}
+``` r
 dependent_simulator <- function(edges, rho = 0.31) {
   l <- length(edges)
   U <- if (l > 1) dependent_uniform(l, rho) else runif(1)
@@ -130,7 +170,7 @@ dependent_time <- sampled_trips %>%
 travel_time$dependent_time <- dependent_time$simulated_time
 ```
 
-```{r}
+``` r
 plot2 <- ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "sampled data")) +
   stat_ecdf(aes(x = dependent_time, color = "dependent data")) +
@@ -157,9 +197,11 @@ plot2 <- ggplot(travel_time) +
 plot2
 ```
 
+![](plot4_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+
 ## Population model
 
-```{r}
+``` r
 population_simulator <- function(duration_secs) {
   l <- length(duration_secs) + 1
   Z <- rnorm(l, 0, sqrt(1))
@@ -177,7 +219,7 @@ population_time <- sampled_trips %>%
 travel_time$population_time <- population_time$simulated_time
 ```
 
-```{r}
+``` r
 plot3 <- ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "sampled data")) +
   stat_ecdf(aes(x = population_time, color = "population data")) +
@@ -203,9 +245,11 @@ plot3 <- ggplot(travel_time) +
   )
 plot3
 ```
-## First Order Model
 
-```{r}
+![](plot4_files/figure-gfm/unnamed-chunk-9-1.png)<!-- --> \## First
+Order Model
+
+``` r
 first_order <- function(n, rho = 0.31) {
   S <- diag(n)
   if (n > 1) {
@@ -237,7 +281,7 @@ first_order_time <- sampled_trips %>%
 travel_time$first_order_time <- first_order_time$simulated_time
 ```
 
-```{r}
+``` r
 plot4 <- ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "sampled data")) +
   stat_ecdf(aes(x = first_order_time, color = "first order data")) +
@@ -263,9 +307,11 @@ plot4 <- ggplot(travel_time) +
   )
 plot4
 ```
-## Second Order Model
 
-```{r}
+![](plot4_files/figure-gfm/unnamed-chunk-11-1.png)<!-- --> \## Second
+Order Model
+
+``` r
 second_order <- function(n, rho = 0.31) {
   S <- diag(n)
   if (n > 2) {
@@ -301,7 +347,7 @@ second_order_time <- sampled_trips %>%
 travel_time$second_order_time <- second_order_time$simulated_time
 ```
 
-```{r}
+``` r
 plot5 <- ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "sampled data")) +
   stat_ecdf(aes(x = second_order_time, color = "second order data")) +
@@ -328,7 +374,9 @@ plot5 <- ggplot(travel_time) +
 plot5
 ```
 
-```{r}
+![](plot4_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+
+``` r
 tripdata <- data.frame(
   logspeed = sampled_trips$logspeed,
   tripID = sampled_trips$trip,
@@ -342,23 +390,41 @@ tripdata <- tripdata %>%
   group_by(tripID) %>%
   arrange(time, .by_group = TRUE)
 unique(tripdata$timeBin)
+```
 
+    ## [1] "Weekday"      "EveningRush"  "MorningRush"  "EveningNight" "Weekendday"
+
+``` r
 tripdata$time <- as.POSIXct(tripdata$time, format = "%Y-%m-%dT%H:%M:%OSZ")
 tripdata$timeBin <- time_bins_readable(tripdata$time)
 unique(tripdata$timeBin)
 ```
 
+    ## [1] "Weekday"      "EveningRush"  "MorningRush"  "EveningNight" "Weekendday"
 
-```{r}
+``` r
 fit <- traveltimeHMM(
   data = tripdata,
   nQ = 2, max.it = 20, model = "HMM"
 )
+```
+
+    ## max.speed is not specified, setting at default value: 130 km/h
+
+    ## Warning: Many observations are higher than speed limit (130km/h)!, about 0.9%
+    ## of observations.  It is advised to remove these observations.
+
+    ## Model HMM with 1000 trips over 16890 roads and 5 time bins...
+
+    ## Expected completion of 20 iterations in 25.8 secs
+
+    ## Reached maximum number of iterations
+
+``` r
 single_trip <- subset(tripdata, tripID == unique(tripdata$tripID)[1])
 ```
 
-
-```{r}
+``` r
 pred <- predict(
   object = fit,
   tripdata = single_trip,
@@ -366,10 +432,15 @@ pred <- predict(
   n = 1000
 )
 hist(pred, freq = FALSE)
+```
+
+![](plot4_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+
+``` r
 travel_time$HMM <- pred
 ```
 
-```{r}
+``` r
 ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "sampled data")) +
   stat_ecdf(aes(x = pred, color = "HMM model simulation")) +
@@ -378,7 +449,9 @@ ggplot(travel_time) +
   scale_color_manual(name = "Legend", values = c("black", "red"))
 ```
 
-```{r}
+![](plot4_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
+
+``` r
 starttime <- tripdata %>%
   group_by(tripID) %>%
   summarise(first(time))
@@ -396,7 +469,7 @@ for (i in 1:1000) {
 travel_time$HMM <- pred
 ```
 
-```{r}
+``` r
 plot6 <- ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "sampled data")) +
   stat_ecdf(aes(x = pred, color = "HMM model simulation")) +
@@ -423,7 +496,9 @@ plot6 <- ggplot(travel_time) +
 plot6
 ```
 
-```{r}
+![](plot4_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
+
+``` r
 plot_list <- list(plot1, plot2, plot4, plot5, plot3, plot6)
 combined_plot <- wrap_plots(plot_list, nrow = 3)
 
@@ -438,7 +513,7 @@ ggsave("plot/R_combined_simulation_plots3.jpg",
 )
 ```
 
-```{r}
+``` r
 fontsize <- 4.3
 plot7 <- ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "Real Data", linetype = "Real Data")) +
@@ -489,7 +564,9 @@ plot7 <- ggplot(travel_time) +
 plot7
 ```
 
-```{r}
+![](plot4_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
+
+``` r
 plot8 <- ggplot(travel_time) +
   stat_density(aes(x = sampled_time, color = "Real Data", linetype = "Real Data"), geom = "line", bw = 50) +
   stat_density(aes(x = non_dependent_time, color = "Non-dependent", linetype = "Non-dependent"), geom = "line", bw = 150) +
@@ -536,7 +613,9 @@ plot8 <- ggplot(travel_time) +
 plot8
 ```
 
-```{r}
+![](plot4_files/figure-gfm/unnamed-chunk-22-1.png)<!-- -->
+
+``` r
 # save data
 write.csv(travel_time, file = "plot/plot_data/plot4_data.csv", row.names = FALSE)
 ```

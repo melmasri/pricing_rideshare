@@ -1,28 +1,20 @@
----
-title: "sample route2"
-author: "Mingze Li 300137754"
-date: "2025-03-05"
-output:
-  github_document: default
----
+sample route2
+================
+Mingze Li 300137754
+2025-03-05
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
+``` r
 #source('traveltimeCLTfunctions.R')
 library(traveltimeCLT)
 library(data.table)
 ```
 
-
-```{r}
+``` r
 trips <- fread('data/trips.csv')
 edge_x_timeBin <-get_timeBin_x_edges(trips)
 ```
 
-```{r}
+``` r
 id <- sample(unique(trips$trip),1000)
 #id <- seq(1:1000)
 sampled_1000_trips <- trips[trip %in% id, c("trip", "linkId", "time")]
@@ -35,10 +27,7 @@ sampled_time$real_time<-as.numeric(sampled_time$real_time)
 sampled_length<-data.table(tripID=unique(sampled_1000_trips$trip),real_length=trips[trip %in%id, .(sum(length)),trip]$V1)
 ```
 
-
-
-```{r}
-
+``` r
 simulated_link<-sampled_1000_trips[,.( trip=trip,
   sampled_linkId = {
   current_edges <- edge_x_timeBin[timeBin == .BY$timeBin]
@@ -65,13 +54,16 @@ simulated_result <- simulated_data[, {
 
 sampled_time$simulation <- simulated_result[,2]
 sampled_length$simulation <- simulated_result[,3]
-
 ```
 
-```{r}
+``` r
 plot_CDF_compare(sampled_time$real_time,sampled_time$simulation,"frequency simulation")
 ```
 
-```{r}
+![](sample-route2_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+
+``` r
 plot_CDF_compare(sampled_length$real_length,sampled_length$simulation,"global edge number simulation","total length","CDF of length",60000)
 ```
+
+![](sample-route2_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
