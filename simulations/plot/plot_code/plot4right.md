@@ -1,21 +1,9 @@
----
-title: "Figure 4 right"
-author: "Mingze Li 300137754"
-date: "2025-07-02"
-output:
-  github_document: default
----
+Figure 4 right
+================
+Mingze Li 300137754
+2025-07-02
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = TRUE,
-  fig.width = 8,
-  fig.height = 6,
-  dpi = 300
-)
-```
-
-```{r}
+``` r
 library(data.table)
 library(ggplot2)
 
@@ -52,7 +40,7 @@ plot_theme <- function(legend_pos, legend_just) {
 }
 ```
 
-```{r}
+``` r
 plot4_right <- ggplot(data) +
   stat_ecdf(aes(x = real, color = "real_data", linetype = "real_data"), linewidth = 1.2) +
   stat_ecdf(aes(x = normal_5, color = "normal_5", linetype = "normal_5"), linewidth = 0.75) +
@@ -70,7 +58,9 @@ plot4_right <- ggplot(data) +
 plot4_right
 ```
 
-```{r}
+![](plot4right_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+
+``` r
 plot4_right <- ggplot(data) +
   stat_density(aes(x = real, color = "real_data", linetype = "real_data"), geom = "line", linewidth = 1.2) +
   stat_density(aes(x = normal_5, color = "normal_5", linetype = "normal_5"), geom = "line", linewidth = 0.8) +
@@ -86,3 +76,5 @@ plot4_right <- ggplot(data) +
   plot_theme(legend_pos = c(0.98, 0.5), legend_just = c(1, 0))
 plot4_right
 ```
+
+![](plot4right_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->

@@ -1,21 +1,9 @@
----
-title: "Plot4"
-author: "Mingze Li 300137754"
-date: "2025-06-24"
-output:
-  github_document: default
----
+Plot4
+================
+Mingze Li 300137754
+2025-06-24
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = TRUE,
-  fig.width = 8,
-  fig.height = 6,
-  dpi = 300
-)
-```
-
-```{r}
+``` r
 library(ggplot2)
 
 travel_time <- read.csv("../plot_data/plot4_data.csv")
@@ -57,7 +45,7 @@ plot_theme <- function(legend_pos, legend_just) {
 }
 ```
 
-```{r}
+``` r
 cdf <- ggplot(travel_time) +
   stat_ecdf(aes(x = sampled_time, color = "Real Data", linetype = "Real Data")) +
   stat_ecdf(aes(x = non_dependent_time, color = "Non-dependent", linetype = "Non-dependent")) +
@@ -78,7 +66,9 @@ cdf <- ggplot(travel_time) +
 cdf
 ```
 
-```{r}
+![](plot4_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+
+``` r
 smooth_pdf <- ggplot(travel_time) +
   stat_density(aes(x = sampled_time, color = "Real Data", linetype = "Real Data"), geom = "line", bw = 50) +
   stat_density(aes(x = non_dependent_time, color = "Non-dependent", linetype = "Non-dependent"), geom = "line", bw = 50) +
@@ -97,3 +87,5 @@ smooth_pdf <- ggplot(travel_time) +
   plot_theme(legend_pos = c(0.98, 0.95), legend_just = c(1, 1))
 smooth_pdf
 ```
+
+![](plot4_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->

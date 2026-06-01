@@ -1,21 +1,9 @@
----
-title: "Plot6"
-author: "Mingze Li 300137754"
-date: "2025-06-24"
-output:
-  github_document: default
----
+Plot6
+================
+Mingze Li 300137754
+2025-06-24
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = TRUE,
-  fig.width = 9,
-  fig.height = 6,
-  dpi = 300
-)
-```
-
-```{r}
+``` r
 library(ggplot2)
 
 user_data <- read.csv("../plot_data/plot6_data.csv")
@@ -36,7 +24,7 @@ dist_labels <- vapply(levels(user_data$dist_group), function(level) {
 }, character(1))
 ```
 
-```{r}
+``` r
 ggplot(user_data) +
   geom_boxplot(
     aes(x = dist_group, y = profit_population, fill = "Population"),
@@ -73,3 +61,5 @@ ggplot(user_data) +
     panel.grid = element_line(colour = "white")
   )
 ```
+
+![](plot6_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
