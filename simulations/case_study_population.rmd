@@ -1,15 +1,20 @@
-Return Analysis
-================
-Mingze Li
-2015-04-16
-
-``` r
+---
+title: "Return Analysis"
+author: "Mingze Li"
+date: "2015-04-16"
+output:
+  github_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
 library(traveltimeCLT)
 library(data.table)
 # setwd("D:/李明泽/留学/Statistics Master/travel pricing/R-simulation/")
 ```
 
-``` r
+```{r}
 trips <- fread("data/trips.csv")
 trips$timeBin <- time_bins_readable(trips$time)
 start_end <- trips[
@@ -30,7 +35,7 @@ start_end <- trips[
 pair_counts <- start_end[, .(count = .N, start_time = max(start_time)), by = .(start, end)][order(-count)]
 ```
 
-``` r
+```{r}
 # hyperparameters of the simulation.
 set.seed(1234)
 # repeat time: how many times to repeat the simulation.
@@ -46,7 +51,7 @@ sigma_n <- 2
 trip_num <- 30
 ```
 
-``` r
+```{r}
 # Run the same case study for multiple group sizes in one report.
 # group_size controls how many real trips are bundled per "counterfactual rider".
 
@@ -59,14 +64,8 @@ names(trips_fit)[c(2, 3, 5, 7, 8)] <- c(
   "tripID", "entry_time", "duration_secs", "distance_meters", "linkID"
 )
 trips_fit$speed <- exp(trips_fit$logspeed)
-fit <- traveltimeCLT(trips_fit, "trip-specific")
-```
+fit <- traveltimeCLT(trips_fit, "population")
 
-    ## Warning in traveltimeCLT(trips_fit, "trip-specific"): 4 trips have less than 1
-    ## observation, and will not be used to estimate autocorrelations, or residual
-    ## variance parameters
-
-``` r
 run_case <- function(group_size) {
   group_size <- as.integer(group_size)
   if (group_size <= 0) stop("group_size must be positive")
@@ -189,60 +188,3 @@ for (res in results) {
   print(res$profit_real)
 }
 ```
-
-    ## 
-    ## 
-    ## ## Group size = 2
-    ## 
-    ##         mean      var      max       min   winrate
-    ##        <num>    <num>    <num>     <num>     <num>
-    ## 1: -1.721996 73.56888 14.35629 -34.97689 0.6466667
-    ##    used_trip       mean      var      max       min   winrate
-    ##        <num>      <num>    <num>    <num>     <num>     <num>
-    ## 1:       1.0 -1.7219962 73.56888 14.35629 -34.97689 0.6466667
-    ## 2:       0.9 -0.9792157 63.45542 14.35629 -33.80748 0.7050000
-    ## 3:       0.8 -0.2627222 53.57493 14.35629 -33.14283 0.7616667
-    ## 4:       0.7 -0.2627222 53.57493 14.35629 -33.14283 0.7616667
-    ## 5:       0.6  0.5038266 42.28516 14.35629 -33.14283 0.8233333
-    ## 
-    ## 
-    ## ## Group size = 4
-    ## 
-    ##         mean      var      max       min   winrate
-    ##        <num>    <num>    <num>     <num>     <num>
-    ## 1: -1.064359 44.32862 6.843418 -33.15848 0.6391667
-    ##    used_trip        mean      var      max       min   winrate
-    ##        <num>       <num>    <num>    <num>     <num>     <num>
-    ## 1:       1.0 -1.06435911 44.32862 6.843418 -33.15848 0.6391667
-    ## 2:       0.9 -0.41697610 40.24714 6.843418 -33.15848 0.7025000
-    ## 3:       0.8 -0.08179191 37.53233 6.843418 -33.15848 0.7375000
-    ## 4:       0.7  0.21819413 34.02447 6.843418 -33.15848 0.7658333
-    ## 5:       0.6  0.53133049 30.02589 6.843418 -33.12621 0.7958333
-    ## 
-    ## 
-    ## ## Group size = 7
-    ## 
-    ##         mean      var      max       min   winrate
-    ##        <num>    <num>    <num>     <num>     <num>
-    ## 1: -1.754819 76.06654 14.35629 -48.01681 0.6109524
-    ##    used_trip       mean      var      max       min   winrate
-    ##        <num>      <num>    <num>    <num>     <num>     <num>
-    ## 1:       1.0 -1.7548193 76.06654 14.35629 -48.01681 0.6109524
-    ## 2:       0.9 -1.0782711 66.82702 14.35629 -40.19865 0.6628571
-    ## 3:       0.8 -0.6343433 61.70437 14.35629 -38.94755 0.7014286
-    ## 4:       0.7 -0.2227470 56.99378 14.35629 -38.94755 0.7380952
-    ## 5:       0.6  0.1880700 52.41068 14.35629 -38.94755 0.7771429
-    ## 
-    ## 
-    ## ## Group size = 11
-    ## 
-    ##          mean      var      max       min   winrate
-    ##         <num>    <num>    <num>     <num>     <num>
-    ## 1: -0.1897144 19.21852 2.983138 -19.50903 0.7109091
-    ##    used_trip        mean      var      max       min   winrate
-    ##        <num>       <num>    <num>    <num>     <num>     <num>
-    ## 1:       1.0 -0.18971441 19.21852 2.983138 -19.50903 0.7109091
-    ## 2:       0.9  0.09085524 17.74704 2.983138 -19.50903 0.7469697
-    ## 3:       0.8  0.28727754 16.69433 2.983138 -18.72707 0.7742424
-    ## 4:       0.7  0.49437450 15.45057 2.983138 -18.72707 0.8012121
-    ## 5:       0.6  0.76857991 13.45085 2.983138 -18.72707 0.8336364
