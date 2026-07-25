@@ -148,7 +148,7 @@ summarize_model <- function(repeat_metrics, model_name) {
 
 ```{r data-setup}
 set.seed(SEED)
-trips <- fread("data/trips.csv")
+trips <- fread("../data/trips.csv")
 #trips <- data.table(trips)
 names(trips)[c(2, 3, 5, 7, 8)] <- c(
   "tripID", "entry_time", "duration_secs", "distance_meters", "linkID"

@@ -17,7 +17,7 @@ simulations/data/
 *.toc
 *.vrb
 *.xdv
-paper/auto/
+latex/paper/auto/
 
 # --- R / R Markdown ---
 .Rhistory

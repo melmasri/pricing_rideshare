@@ -15,7 +15,7 @@ library(data.table)
 ```
 
 ```{r}
-trips <- fread("data/trips.csv")
+trips <- fread("../data/trips.csv")
 trips <- data.table(trips)
 trips$timeBin <- time_bins_readable(trips$time)
 start_end <- trips[

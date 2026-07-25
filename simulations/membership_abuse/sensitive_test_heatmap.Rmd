@@ -12,7 +12,7 @@ Knit [`sensitive_test_generate.Rmd`](sensitive_test_generate.Rmd) first (or set 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 9, fig.height = 7, dpi = 300)
 RUN_SIMULATION <- FALSE
-RESULTS_RDS <- "plot/sensitive_test_results.rds"
+RESULTS_RDS <- "../plot/sensitive_test_results.rds"
 USE_REFERENCE <- FALSE # TRUE: plot archived appendix tables from sensitive_test.Rmd (old design)
 ```
 

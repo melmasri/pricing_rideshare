@@ -194,7 +194,7 @@ run_membership_abuse_scenario <- function(
 
 ```{r data-setup}
 set.seed(SEED)
-trips <- fread("data/trips.csv")
+trips <- fread("../data/trips.csv")
 names(trips)[c(2, 3, 5, 7, 8)] <- c(
   "tripID", "entry_time", "duration_secs", "distance_meters", "linkID"
 )
@@ -279,7 +279,7 @@ saveRDS(
     trip_specific = trip_specific[c("return_dt", "sd_dt", "results_long")],
     population = population[c("return_dt", "sd_dt", "results_long")]
   ),
-  "plot/sensitive_test_results.rds"
+  "../plot/sensitive_test_results.rds"
 )
 ```
 

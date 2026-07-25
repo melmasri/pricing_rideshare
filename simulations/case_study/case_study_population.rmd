@@ -15,7 +15,7 @@ library(data.table)
 ```
 
 ```{r}
-trips <- fread("data/trips.csv")
+trips <- fread("../data/trips.csv")
 trips$timeBin <- time_bins_readable(trips$time)
 start_end <- trips[
   , .(
@@ -182,8 +182,8 @@ run_case <- function(group_size) {
 results <- lapply(group_sizes, run_case)
 names(results) <- paste0("g", group_sizes)
 
-dir.create("plot", showWarnings = FALSE, recursive = TRUE)
-saveRDS(results, "plot/case_study_population_results.rds")
+dir.create("../plot", showWarnings = FALSE, recursive = TRUE)
+saveRDS(results, "../plot/case_study_population_results.rds")
 
 for (res in results) {
   cat("\n\n## Group size = ", res$group_size, "\n\n", sep = "")
