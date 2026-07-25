@@ -16,14 +16,15 @@ library(data.table)
 
 ```{r}
 trips <- fread("data/trips.csv")
+trips <- data.table(trips)
 trips$timeBin <- time_bins_readable(trips$time)
 start_end <- trips[
   , .(
-    start = linkId[order(time)][1],
-    end = linkId[order(time)[.N]],
-    start_time = time[order(time)][1],
-    distance = sum(length)
-  ), trip
+    start = linkID[order(entry_time)][1],
+    end = linkID[order(entry_time)[.N]],
+    start_time = entry_time[order(entry_time)][1],
+    distance = sum(distance_meters)
+  ), tripID
 ]
 
 # start_end[, sorted_pair := fcase(

@@ -182,9 +182,31 @@ run_case <- function(group_size) {
 results <- lapply(group_sizes, run_case)
 names(results) <- paste0("g", group_sizes)
 
+dir.create("plot", showWarnings = FALSE, recursive = TRUE)
+saveRDS(results, "plot/case_study_population_results.rds")
+
 for (res in results) {
   cat("\n\n## Group size = ", res$group_size, "\n\n", sep = "")
   print(res$profit_summary)
   print(res$profit_real)
 }
+```
+
+```{r heatmaps-mean, fig.width=8, fig.height=4.5, dpi=300}
+library(ggplot2)
+source("case_study_heatmap.R")
+heatmap_data <- prepare_heatmap_data(results)
+plot_profit_mean_heatmap(heatmap_data, title = "Population model — mean profit")
+```
+
+```{r heatmaps-sd, fig.width=8, fig.height=4.5, dpi=300}
+plot_profit_sd_heatmap(heatmap_data, title = "Population model — profit SD")
+```
+
+```{r heatmaps-combined, fig.width=8, fig.height=4.8, dpi=300}
+plot_profit_combined_heatmap(heatmap_data, title = "Population model — mean ± SD")
+```
+
+```{r heatmaps-facet, fig.width=10, fig.height=4.5, dpi=300}
+plot_profit_facet_heatmap(heatmap_data)
 ```

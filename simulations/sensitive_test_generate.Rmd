@@ -1,0 +1,321 @@
+---
+title: "Membership abuse stress test — 100 riders × 40 trips"
+author: "Mingze Li"
+date: "`r Sys.Date()`"
+output:
+  github_document: default
+---
+
+Stress-tests **discount membership** (10% cap, `K = 0.9P`) by simulating **100 counterfactual
+riders** with **40 trips** each. A fraction **M₁/40** of trips are drawn from the upper-**q**
+quantile of the trip-length distribution on a per-rider test sample; **q** controls severity,
+**M₁/40** controls frequency. When **M₁ = 0**, no trip is drawn from the tail and **q** is
+irrelevant—the top row is nine independent Monte-Carlo replicates of the no-abuse baseline.
+
+Based on `table4(2).rmd` / paper Sec. Membership Abuse (`tab:abuse-return`, `tab:abuse-sd`).
+Runs the same grid under **trip-specific** and **population** travel-time models (`traveltimeCLT`).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r params}
+library(traveltimeCLT)
+library(data.table)
+
+SEED <- 1234L
+N_RIDERS <- 1L          # 100 counterfactual riders (10 repeats × 10 riders)
+N_REPEATS <- 1L
+RIDERS_PER_REPEAT <- 100L
+TRIPS_PER_RIDER <- 40L    # M_1 <= 40 abusive trips per rider
+K_FACTOR <- 1.0
+Q_LEVELS <- seq(0.1, 0.9, by = 0.1)   # severity quantile (columns in paper tables)
+M_VALUES <- seq(0, TRIPS_PER_RIDER * 0.9, by = TRIPS_PER_RIDER * 0.1)  # M_1/40 = 0, 0.1, …, 0.9
+stopifnot(N_RIDERS == N_REPEATS * RIDERS_PER_REPEAT)
+stopifnot(all(M_VALUES == floor(M_VALUES)))
+Q_LEVELS <- c(0)
+M_VALUES <- c(0)
+```
+
+```{r helpers}
+fill_timebin_edges <- function(unique_trips, timebin_x_edges) {
+  dt <- copy(unique_trips)
+  global_dt <- timebin_x_edges[timeBin == "Global"]
+  na_idx <- which(is.na(dt$mean))
+  cols <- c("timeBin", "mean", "sd", "frequency", "length", "ID")
+  if (length(na_idx) > 0) {
+    repl <- global_dt[dt[na_idx, .(linkID)], on = "linkID"]
+    dt[na_idx, (cols) := repl[, mget(cols)]]
+  }
+  na.omit(dt)
+}
+
+simulate_trip_prices <- function(sampled, trips, timebin_x_edges) {
+  unique_trips <- sampled[, .(n_rep = .N), .(tripID, timeBin)]
+  unique_trips <- merge(unique_trips, trips[, .(tripID, linkID)], by = "tripID", allow.cartesian = TRUE)
+  unique_trips <- merge(unique_trips, timebin_x_edges, by = c("timeBin", "linkID"), all.x = TRUE)
+  unique_trips <- fill_timebin_edges(unique_trips, timebin_x_edges)
+
+  travel <- unique_trips[, {
+    reps <- n_rep[1]
+    times <- numeric(reps)
+    dist <- sum(length)
+    for (i in seq_len(reps)) {
+      times[i] <- sum(exp(mean + stats::qnorm(dependent_uniform(.N)) * sd))
+    }
+    .(time = times, distance = rep(dist, reps), index = seq_len(reps))
+  }, by = .(timeBin, tripID)]
+
+  out <- copy(sampled)
+  out[, index := seq_len(.N), by = .(tripID, timeBin)]
+  out <- merge(out, travel, by = c("tripID", "timeBin", "index"), all.x = TRUE)
+  out[, real_price := price(time, distance)[, 1]]
+  out
+}
+
+run_membership_abuse_grid <- function(
+  trips_stat,
+  trips,
+  timebin_x_edges,
+  M_values = M_VALUES,
+  q_levels = Q_LEVELS,
+  n_repeats = N_REPEATS,
+  riders_per_repeat = RIDERS_PER_REPEAT,
+  trips_per_rider = TRIPS_PER_RIDER
+) {
+  pressure_data <- CJ(
+    repeat_time = seq_len(n_repeats),
+    q = q_levels,
+    rider = seq_len(riders_per_repeat),
+    M = M_values
+  )
+  pressure_data <- pressure_data[, .(trip_idx = seq_len(trips_per_rider)), by = .(repeat_time, q, rider, M)]
+
+  cat(
+    "Sampling", n_repeats, "repeats ×", riders_per_repeat, "riders ×",
+    length(M_values), "abuse levels ×", length(q_levels), "q levels …\n"
+  )
+
+  sampled <- pressure_data[, {
+    id <- sample.int(nrow(trips_stat), trips_per_rider, replace = FALSE)
+    test <- trips_stat[id]
+    train <- trips_stat[-id]
+    assignments <- .SD[, {
+      q_cut <- as.numeric(stats::quantile(test$distance, probs = q, names = FALSE))
+      abuse_pool <- test[distance >= q_cut]
+      if (M > 0L && nrow(abuse_pool) == 0L) {
+        stop("Empty abuse pool for q = ", q, "; increase test sample or lower q.")
+      }
+      abuse_ids <- if (M > 0L) {
+        abuse_pool$tripID[sample.int(nrow(abuse_pool), M, replace = TRUE)]
+      } else {
+        integer(0)
+      }
+      normal_ids <- test$tripID[sample.int(trips_per_rider, trips_per_rider - M, replace = TRUE)]
+      tripID <- c(abuse_ids, normal_ids)
+      Rt <- rep(mean(train$Rt), trips_per_rider)
+      Kt <- rep(mean(train$Kt), trips_per_rider)
+      timeBin <- sample(
+        c("EveningNight", "EveningRush", "Weekday", "MorningRush", "Weekendday"),
+        trips_per_rider,
+        replace = TRUE
+      )
+      .(trip_idx = seq_len(trips_per_rider), tripID, Rt, Kt, timeBin)
+    }, by = .(q, rider, M)]
+    assignments
+  }, by = .(repeat_time)]
+
+  cat("Simulating travel times …\n")
+  priced <- simulate_trip_prices(sampled, trips[, .(tripID, linkID)], timebin_x_edges)
+
+  cat("Aggregating rider-level returns …\n")
+  rider_returns <- priced[, {
+    profit <- sum(Rt) + sum(pmin(Kt - real_price, 0))
+    expand <- sum(real_price)
+    pct_return <- profit / expand * trips_per_rider
+    .(pct_return = pct_return, profit = profit, expand = expand)
+  }, by = .(M, q, repeat_time, rider)]
+
+  rider_returns[, abuse_rate := M / trips_per_rider]
+  rider_returns[, .(
+    mean_return = mean(pct_return, na.rm = TRUE),
+    sd_return_se = stats::sd(pct_return, na.rm = TRUE) / sqrt(.N)
+  ), by = .(abuse_rate, q)]
+}
+
+build_trips_stat <- function(trips, trips_record, model = c("trip-specific", "population")) {
+  model <- match.arg(model)
+  cat("Fitting", model, "model …\n")
+  fit <- traveltimeCLT(trips, model)
+  cat("Predicting travel times for user records …\n")
+  pt <- predict(fit, trips_record)
+  stat <- trips[, .(
+    start_time = entry_time[1],
+    distance = sum(distance_meters),
+    duration_secs = max(entry_time) - min(entry_time),
+    real_price = price(max(entry_time) - min(entry_time), sum(distance_meters))[, 1]
+  ), tripID]
+  stat[, Kt := request_K(pt, distance, discount_factor = K_FACTOR)]
+  stat[, Rt := request_R(pt, start_time, start_time, distance, K = K_FACTOR, risk_free = 0, zeta = 0)]
+  na.omit(stat)
+}
+
+to_wide_tables <- function(results_long) {
+  return_dt <- dcast(results_long, abuse_rate ~ q, value.var = "mean_return", fun.aggregate = identity)
+  setnames(return_dt, as.character(Q_LEVELS), paste0("q_", Q_LEVELS))
+  sd_dt <- dcast(results_long, abuse_rate ~ q, value.var = "sd_return_se", fun.aggregate = identity)
+  setnames(sd_dt, as.character(Q_LEVELS), paste0("q_", Q_LEVELS))
+  list(return_dt = return_dt, sd_dt = sd_dt)
+}
+
+run_membership_abuse_scenario <- function(
+  trips,
+  trips_record,
+  timebin_x_edges,
+  model = c("trip-specific", "population")
+) {
+  model <- match.arg(model)
+  cat("\n=== ", model, " model ===\n", sep = "")
+  set.seed(SEED)
+  trips_stat <- build_trips_stat(trips, trips_record, model)
+  cat("Trips in pool:", nrow(trips_stat), "\n")
+  results_long <- run_membership_abuse_grid(
+    trips_stat = trips_stat,
+    trips = trips,
+    timebin_x_edges = timebin_x_edges
+  )
+  wide <- to_wide_tables(results_long)
+  c(
+    list(model = model, trips_stat = trips_stat, results_long = results_long),
+    wide
+  )
+}
+```
+
+```{r data-setup}
+set.seed(SEED)
+trips <- fread("data/trips.csv")
+names(trips)[c(2, 3, 5, 7, 8)] <- c(
+  "tripID", "entry_time", "duration_secs", "distance_meters", "linkID"
+)
+trips$speed <- exp(trips$logspeed)
+trips$timeBin <- time_bins_readable(trips$entry_time)
+
+trips_record <- trips[, .(
+  entry_time = rep(entry_time[1], .N),
+  timeBin,
+  logspeed,
+  tripID,
+  linkID,
+  distance_meters
+), tripID]
+
+timebin_x_edges <- get_timeBin_x_edges(
+  tripID = trips$tripID,
+  linkId = trips$linkID,
+  length = trips$distance_meters,
+  timeBin = trips$timeBin,
+  duration = trips$duration_secs
+)
+setnames(timebin_x_edges, c("timeBin", "linkId"), c("timeBin", "linkID"))
+
+cat("Loaded", uniqueN(trips$tripID), "trips for membership-abuse grid\n")
+```
+
+```{r trip-specific-simulation}
+trip_specific <- run_membership_abuse_scenario(
+  trips = trips,
+  trips_record = trips_record,
+  timebin_x_edges = timebin_x_edges,
+  model = "trip-specific"
+)
+trip_specific$results_long
+```
+
+```{r trip-specific-tables}
+return_dt <- trip_specific$return_dt
+sd_dt <- trip_specific$sd_dt
+return_dt
+sd_dt
+```
+
+```{r population-simulation}
+population <- run_membership_abuse_scenario(
+  trips = trips,
+  trips_record = trips_record,
+  timebin_x_edges = timebin_x_edges,
+  model = "population"
+)
+population$results_long
+```
+
+```{r population-tables}
+return_dt_pop <- population$return_dt
+sd_dt_pop <- population$sd_dt
+return_dt_pop
+sd_dt_pop
+```
+
+```{r no-abuse-row-check}
+# When M_1/40 = 0, q should not matter (independent MC replicates of the same baseline).
+for (scenario in list(trip_specific, population)) {
+  baseline <- scenario$results_long[abuse_rate == 0, .(mean_return, sd_return_se, q)]
+  cat("\n", scenario$model, " — no-abuse row: mean return range =",
+      round(range(baseline$mean_return), 3),
+      ", SE range =",
+      round(range(baseline$sd_return_se), 3), "\n")
+  print(baseline)
+}
+```
+
+```{r export, eval=FALSE}
+dir.create("plot_abuse", showWarnings = FALSE, recursive = TRUE)
+fwrite(trip_specific$return_dt, "plot_abuse/return_dt_trip_specific.csv")
+fwrite(trip_specific$sd_dt, "plot_abuse/sd_dt_trip_specific.csv")
+fwrite(population$return_dt, "plot_abuse/return_dt_population.csv")
+fwrite(population$sd_dt, "plot_abuse/sd_dt_population.csv")
+saveRDS(
+  list(
+    trip_specific = trip_specific[c("return_dt", "sd_dt", "results_long")],
+    population = population[c("return_dt", "sd_dt", "results_long")]
+  ),
+  "plot/sensitive_test_results.rds"
+)
+```
+
+```{r heatmaps, fig.width=5.5, fig.height=5, dpi=300}
+library(ggplot2)
+source("sensitive_test_heatmap.R")
+
+ts_plots <- plot_scenario_heatmaps(trip_specific, "Trip-specific model")
+ts_plots$return
+```
+
+```{r sd-heatmap, fig.width=5.5, fig.height=5.5, dpi=300}
+ts_plots$sd
+```
+
+```{r combined-heatmap, fig.width=5.5, fig.height=5.5, dpi=300}
+ts_plots$combined
+```
+
+```{r facet-heatmap, fig.width=11, fig.height=5.5, dpi=300}
+ts_plots$facet
+```
+
+```{r population-heatmaps, fig.width=5.5, fig.height=5, dpi=300}
+pop_plots <- plot_scenario_heatmaps(population, "Population model")
+pop_plots$return
+```
+
+```{r population-sd-heatmap, fig.width=5.5, fig.height=5, dpi=300}
+pop_plots$sd
+```
+
+```{r population-combined-heatmap, fig.width=5.5, fig.height=5.5, dpi=300}
+pop_plots$combined
+```
+
+```{r population-facet-heatmap, fig.width=11, fig.height=5.5, dpi=300}
+pop_plots$facet
+```

@@ -1,0 +1,272 @@
+---
+title: "Flat-membership abuse stress test — loss ratio & break-even loading"
+author: "Mohamad Elmasri"
+date: "`r Sys.Date()`"
+output:
+  github_document: default
+---
+
+Stress-tests an **unrestricted flat membership**: a single cap `Kbar` covers any
+route at any time, so the rider's marginal price of distance is **zero** and a
+rational holder substitutes toward the longest covered trips. Abuse is therefore
+selected on **trip length** (the dimension the flat price fails to condition on).
+
+Two design fixes over the earlier grid:
+
+- **Metric.** We report an insurance **loss ratio** `LR = claims / premium`, where
+  `claims = sum_i (P_i - Kbar)^+` over the rider's `N` trips and `premium = N * Rbar`.
+  Because the premium is a constant, the cell-mean loss ratio **is** the break-even
+  premium **loading** `theta` (the multiple of the fair premium the provider must
+  charge to survive that abuse level). `theta > 1` means the product is underwater.
+- **Global quantile.** The severity cut is taken from the **whole pool**, not each
+  rider's 40-trip sample, which removes the unstable high-`q` cells.
+
+`Rbar, Kbar` are calibrated empirically from the same simulator, so under **no abuse**
+the loss ratio is `~1` by construction (a sanity check, below). The rational-abuser
+corner `(M/N, q) -> (1, 0.9)` is reported explicitly as the **security level**.
+
+> NOTE: not executed here. Verify the `traveltimeCLT` helpers (`price`,
+> `dependent_uniform`, `get_timeBin_x_edges`, `time_bins_readable`) resolve in your
+> environment, and check the no-abuse row prints `theta ~ 1` before trusting the grid.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = TRUE, warning = TRUE)
+```
+
+```{r params}
+library(traveltimeCLT)
+library(data.table)
+
+SEED              <- 1234L
+RIDERS_PER_REPEAT <- 100L                       # counterfactual riders per cell
+TRIPS_PER_RIDER   <- 40L                         # N rides per membership
+K_FACTOR          <- 0.9                          # flat cap = 0.9 * mean expected price (10% discount)
+                                                  #   set 1.0 for an undiscounted flat cap
+Q_LEVELS <- seq(0.1, 0.9, by = 0.1)              # severity: draw abused trips from the upper-q of LENGTH
+M_VALUES <- seq(0, TRIPS_PER_RIDER, by = TRIPS_PER_RIDER * 0.1)  # M/N = 0, 0.1, ..., 1.0 (incl. corner)
+
+# calibration budget for the flat premium/cap (means, so a subsample is ample)
+CAL_N    <- 1500L
+CAL_REPS <- 100L
+
+stopifnot(all(M_VALUES == floor(M_VALUES)), max(M_VALUES) <= TRIPS_PER_RIDER)
+```
+
+```{r helpers-engine}
+## --- simulation engine, verbatim from the project's sensitive-test file --------
+fill_timebin_edges <- function(unique_trips, timebin_x_edges) {
+  dt <- copy(unique_trips)
+  global_dt <- timebin_x_edges[timeBin == "Global"]
+  na_idx <- which(is.na(dt$mean))
+  cols <- c("timeBin", "mean", "sd", "frequency", "length", "ID")
+  if (length(na_idx) > 0) {
+    repl <- global_dt[dt[na_idx, .(linkID)], on = "linkID"]
+    dt[na_idx, (cols) := repl[, mget(cols)]]
+  }
+  na.omit(dt)
+}
+
+simulate_trip_prices <- function(sampled, trips, timebin_x_edges) {
+  unique_trips <- sampled[, .(n_rep = .N), .(tripID, timeBin)]
+  unique_trips <- merge(unique_trips, trips[, .(tripID, linkID)], by = "tripID", allow.cartesian = TRUE)
+  unique_trips <- merge(unique_trips, timebin_x_edges, by = c("timeBin", "linkID"), all.x = TRUE)
+  unique_trips <- fill_timebin_edges(unique_trips, timebin_x_edges)
+
+  travel <- unique_trips[, {
+    reps <- n_rep[1]
+    times <- numeric(reps)
+    dist <- sum(length)
+    for (i in seq_len(reps)) {
+      times[i] <- sum(exp(mean + stats::qnorm(dependent_uniform(.N)) * sd))
+    }
+    .(time = times, distance = rep(dist, reps), index = seq_len(reps))
+  }, by = .(timeBin, tripID)]
+
+  out <- copy(sampled)
+  out[, index := seq_len(.N), by = .(tripID, timeBin)]
+  out <- merge(out, travel, by = c("tripID", "timeBin", "index"), all.x = TRUE)
+  out[, real_price := price(time, distance)[, 1]]
+  out
+}
+```
+
+```{r helpers-flat}
+## --- per-trip pool: length (selection axis) + the trip's own start time bin ----
+build_pool_stat <- function(trips) {
+  trips[, .(
+    distance = sum(distance_meters),   # meters; the length dimension abuse selects on
+    timeBin  = timeBin[1]              # trip's true starting bin (not randomized)
+  ), by = tripID]
+}
+
+## --- calibrate the flat membership price: Kbar (single cap) and Rbar (fair premium)
+## Kbar = K_FACTOR * mean_pool E[P];   Rbar = E_pool[(P - Kbar)^+]
+## Estimated from the SAME simulator so the no-abuse loss ratio is ~1 by construction.
+calibrate_flat_membership <- function(stat, trips, timebin_x_edges,
+                                      k_factor = K_FACTOR,
+                                      n_cal = CAL_N, reps = CAL_REPS) {
+  cal_ids <- sample(stat$tripID, min(n_cal, nrow(stat)))
+  cal     <- stat[tripID %in% cal_ids]
+  sampled <- cal[, .(trip_idx = seq_len(reps)), by = .(tripID, timeBin)]  # reps draws per trip
+  priced  <- simulate_trip_prices(sampled, trips[, .(tripID, linkID)], timebin_x_edges)
+
+  EP   <- priced[, .(EP = mean(real_price)), by = tripID]      # per-trip expected price
+  Kbar <- k_factor * mean(EP$EP)                                # single flat cap
+  Rbar <- priced[, mean(pmax(real_price - Kbar, 0))]            # fair per-ride membership premium
+  list(Kbar = Kbar, Rbar = Rbar, mean_EP = mean(EP$EP))
+}
+
+## --- the abuse grid: distance selection, GLOBAL quantile, loss-ratio metric -----
+run_flat_abuse_grid <- function(stat, trips, timebin_x_edges, Kbar, Rbar,
+                                M_values = M_VALUES, q_levels = Q_LEVELS,
+                                riders = RIDERS_PER_REPEAT, N = TRIPS_PER_RIDER) {
+  premium <- N * Rbar                                          # constant across riders/cells
+
+  build_cell <- function(q) {
+    cut        <- as.numeric(stats::quantile(stat$distance, probs = q, names = FALSE))  # GLOBAL
+    abuse_pool <- stat[distance >= cut]
+    if (nrow(abuse_pool) == 0L) stop("Empty abuse pool at q = ", q)
+    CJ(rider = seq_len(riders), M = M_values)[, {
+      abuse_ids  <- if (M > 0L)
+        abuse_pool$tripID[sample.int(nrow(abuse_pool), M, replace = TRUE)] else integer(0)
+      normal_ids <- stat$tripID[sample.int(nrow(stat), N - M, replace = TRUE)]
+      .(trip_idx = seq_len(N), tripID = c(abuse_ids, normal_ids), q = q)
+    }, by = .(rider, M)]
+  }
+
+  sampled <- rbindlist(lapply(q_levels, build_cell))
+  sampled <- merge(sampled, stat[, .(tripID, timeBin)], by = "tripID", all.x = TRUE)
+
+  priced <- simulate_trip_prices(sampled, trips[, .(tripID, linkID)], timebin_x_edges)
+
+  rider <- priced[, {
+    claims <- sum(pmax(real_price - Kbar, 0))                  # sum_i (P_i - Kbar)^+
+    expend <- sum(real_price)
+    .(loss_ratio = claims / premium,                           # LR; cell-mean = break-even loading theta
+      profit     = premium - claims,
+      pct_return = (premium - claims) / expend * N)            # legacy metric, for comparability
+  }, by = .(q, M, rider)]
+
+  rider[, abuse_rate := M / N]
+  rider[, .(
+    theta        = mean(loss_ratio),          # break-even premium loading (= mean loss ratio)
+    se_theta     = stats::sd(loss_ratio) / sqrt(.N),
+    p_underwater = mean(loss_ratio > 1),      # share of riders whose claims exceed premium
+    mean_return  = mean(pct_return),
+    se_return    = stats::sd(pct_return) / sqrt(.N)
+  ), by = .(abuse_rate, q)][order(abuse_rate, q)]
+}
+
+to_wide <- function(results_long, value.var) {
+  dcast(results_long, abuse_rate ~ q, value.var = value.var)
+}
+```
+
+```{r data-setup}
+set.seed(SEED)
+trips <- fread("data/trips.csv")
+names(trips)[c(2, 3, 5, 7, 8)] <- c(
+  "tripID", "entry_time", "duration_secs", "distance_meters", "linkID"
+)
+trips$speed   <- exp(trips$logspeed)
+trips$timeBin <- time_bins_readable(trips$entry_time)
+
+timebin_x_edges <- get_timeBin_x_edges(
+  tripID   = trips$tripID,
+  linkId   = trips$linkID,
+  length   = trips$distance_meters,
+  timeBin  = trips$timeBin,
+  duration = trips$duration_secs
+)
+setnames(timebin_x_edges, c("timeBin", "linkId"), c("timeBin", "linkID"))
+
+stat <- build_pool_stat(trips)
+cat("Pool trips:", nrow(stat), " | median length (m):", stats::median(stat$distance), "\n")
+```
+
+```{r calibrate}
+set.seed(SEED)
+cal <- calibrate_flat_membership(stat, trips, timebin_x_edges)
+cat(sprintf("Flat cap Kbar = %.2f  (=%.2f x mean E[P] = %.2f)\n",
+            cal$Kbar, K_FACTOR, cal$mean_EP))
+cat(sprintf("Fair membership premium Rbar = %.3f per ride;  N*Rbar = %.2f collected\n",
+            cal$Rbar, TRIPS_PER_RIDER * cal$Rbar))
+```
+
+```{r run-grid}
+set.seed(SEED)
+results_long <- run_flat_abuse_grid(stat, trips, timebin_x_edges,
+                                    Kbar = cal$Kbar, Rbar = cal$Rbar)
+results_long
+```
+
+```{r sanity-no-abuse}
+# Under no abuse (M/N = 0), q is irrelevant and theta should scatter around ~1.
+baseline <- results_long[abuse_rate == 0]
+cat("No-abuse row: theta range =", round(range(baseline$theta), 3),
+    "| mean =", round(mean(baseline$theta), 3), "(should be ~1)\n")
+print(baseline[, .(q, theta, p_underwater)])
+```
+
+```{r security-level}
+# Rational-abuser corner: zero marginal length-price -> longest covered trips.
+corner <- results_long[abuse_rate == max(abuse_rate) & q == max(q)]
+cat(sprintf(
+  "Security level (M/N=%.1f, q=%.1f): break-even loading theta = %.2f (%.0f%% of riders underwater)\n",
+  corner$abuse_rate, corner$q, corner$theta, 100 * corner$p_underwater))
+cat("=> to survive this abuse level the provider must charge", round(corner$theta, 2),
+    "x the fair premium; if theta is large the flat product is effectively uninsurable.\n")
+```
+
+```{r wide-tables}
+theta_wide        <- to_wide(results_long, "theta")            # break-even loading surface
+underwater_wide   <- to_wide(results_long, "p_underwater")     # P(claims > premium) surface
+theta_wide
+underwater_wide
+```
+
+```{r export, eval=FALSE}
+dir.create("plot_abuse", showWarnings = FALSE, recursive = TRUE)
+fwrite(results_long,     "plot_abuse/flat_abuse_long.csv")
+fwrite(theta_wide,       "plot_abuse/flat_abuse_theta.csv")
+fwrite(underwater_wide,  "plot_abuse/flat_abuse_underwater.csv")
+```
+
+```{r heatmap, fig.width=5.5, fig.height=5, dpi=300}
+library(ggplot2)
+library(scales)
+
+# grayscale, journal-ready: darker = worse (higher loading); solvent cells (theta<=1) outlined.
+plot_theta <- function(res, cap = 3, label_size = 2.4) {
+  d <- as.data.frame(res)
+  d$.txt <- ifelse(pmin(d$theta, cap) > (1 + 0.55 * (cap - 1)), "grey95", "grey10")
+  ggplot(d, aes(q, abuse_rate, fill = theta)) +
+    geom_tile(colour = "white", linewidth = 0.3) +
+    geom_tile(data = subset(d, theta <= 1), fill = NA, colour = "black", linewidth = 0.5) +
+    geom_text(aes(label = sprintf("%.2f", theta), colour = .txt), size = label_size) +
+    scale_colour_identity() +
+    scale_fill_gradient(low = "grey97", high = "grey20", name = expression(theta),
+                        limits = c(min(d$theta), cap), oob = scales::squish,
+                        guide = guide_colourbar(barwidth = unit(3, "mm"),
+                                                barheight = unit(35, "mm"))) +
+    coord_fixed(ratio = 1, expand = FALSE) +
+    labs(title = "Break-even premium loading",
+         x = expression(paste("Severity quantile ", italic(q), " (trip length)")),
+         y = expression(paste("Abuse fraction ", italic(M), "/N"))) +
+    theme_minimal(base_size = 9) +
+    theme(panel.grid = element_blank(),
+          plot.title = element_text(hjust = 0.5),
+          axis.text  = element_text(colour = "black"))
+}
+plot_theta(results_long)
+```
+
+```{r note-model-contrast, eval=FALSE}
+## To recover the population-vs-trip-specific *model-risk* contrast on top of this,
+## compute Kbar/Rbar from each model's PRICED premium instead of the empirical
+## calibrator, e.g. fit <- traveltimeCLT(trips, model); pt <- predict(fit, trips_record);
+## then set Kbar/Rbar from request_K/request_R against the flat cap. Claims stay
+## simulator-based (the "truth"); only the priced premium changes with the model.
+## For flat/length abuse this is second-order (distance is priced exactly by both
+## models via C2*delta), so the headline result above is model-robust.
+```
