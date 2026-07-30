@@ -10,7 +10,7 @@ baseline_x_label <- function(
     return(label)
   }
   sprintf(
-    "%s (baseline return %.*f%%; SE %.*f%%)",
+    "%s (no-abuse baseline %.*f%%; SE %.*f%%)",
     label,
     return_digits,
     baseline$mean_return,
@@ -213,7 +213,7 @@ plot_sensitive_combined_heatmap <- function(
       mid = "white",
       high = "#1a9850",
       midpoint = 0,
-      name = "Return (%)"
+      name = "Profit\n(% of fares)"
     ) +
     ggplot2::labs(
       title = title,
@@ -245,7 +245,7 @@ plot_sensitive_facet_heatmap <- function(
   long[, metric := factor(
     metric,
     levels = c("mean_return", "sd_return_se"),
-    labels = c("Mean return (%)", "SE of mean return (%)")
+    labels = c("Mean profit (% of fares)", "SE of mean profit (%)")
   )]
 
   ggplot2::ggplot(long, ggplot2::aes(x = q_num, y = abuse_rate, fill = value)) +
@@ -282,7 +282,7 @@ plot_scenario_heatmaps <- function(scenario, model_label) {
     ),
     sd = plot_sensitive_sd_heatmap(
       heatmap_data,
-      title = paste(model_label, "— SE of mean return (%)"),
+      title = paste(model_label, "— SE of mean profit (%)"),
       x_label = x_label,
       y_label = expression(M[1]/40)
     ),

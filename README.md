@@ -10,8 +10,8 @@ pricing_rideshare/
 │   ├── paper/          # Main manuscript (main.tex, figures, references)
 │   └── preprint/       # Preprint / submission variant (add sources here)
 ├── simulations/
-│   ├── case_study/     # Commuter membership — fixed origin/destination
-│   ├── membership_abuse/  # Discount & flat membership stress tests
+│   ├── commuter_membership/  # Commuter membership — fixed origin/destination and hour
+│   ├── membership_abuse/     # Discount & flat membership stress tests
 │   ├── plot/           # Shared figure and RDS outputs
 │   ├── sql/            # Trip extraction queries
 │   └── data/           # Local trip data (gitignored)
@@ -22,16 +22,17 @@ pricing_rideshare/
 | Paper section | Simulation |
 |---------------|------------|
 | On-demand pricing (Sec. upfront) | `simulations/On-Demand.Rmd`, `table1.Rmd`–`table3.Rmd` |
+| On-demand realized profit and loss | `simulations/on_demand_pnl.R` |
 | Discount membership abuse | `simulations/membership_abuse/sensitive_test_generate.Rmd` |
 | Flat membership abuse | `simulations/membership_abuse/flat_membership_abuse.Rmd` |
-| Commuter membership (fixed OD) | `simulations/case_study/case_study.rmd` (trip-specific), `case_study_population.rmd` (population) |
+| Commuter membership (fixed OD) | `simulations/commuter_membership/` |
 
 ## Running simulations
 
 Knit R Markdown from each notebook's directory (paths assume `../data/trips.csv` and `../plot/`).
 
 ```bash
-cd simulations/case_study && Rscript -e 'rmarkdown::render("case_study.rmd")'
+cd simulations/commuter_membership && Rscript run_commuter_membership.R
 cd simulations/membership_abuse && Rscript -e 'rmarkdown::render("sensitive_test_generate.Rmd")'
 ```
 

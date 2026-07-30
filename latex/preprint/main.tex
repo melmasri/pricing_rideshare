@@ -143,7 +143,7 @@ no-arbitrage replication price.
 
 Beyond single rides, there is growing interest in pricing more complex
 transportation products, such as commuter memberships; most work here focuses on
-optimization methods for commuter ride-sharing~\citep{WANG2019390, MA2017345}. A membership priced at a flat cap, however, raises a selection problem familiar from flat-rate and subscription pricing: a price paid regardless of usage attracts precisely the users for whom it is least profitable and weakens their incentive to economize \citep{dellavigna2006gym, lambrecht2006paying}. The distinction between this selection channel and the usage (moral-hazard) channel is well studied in insurance \citep{powell2021disentangling}, and it is the lens we apply to membership abuse in Sections~\ref{sec:abuse}--\ref{sec:discussion}.
+optimization methods for commuter ride-sharing~\citep{WANG2019390, MA2017345}. A membership priced at a flat cap, however, raises a selection problem familiar from flat-rate and subscription pricing: a price paid regardless of usage attracts precisely the users for whom it is least profitable and weakens their incentive to economize \citep{dellavigna2006gym, lambrecht2006paying}. The distinction between this selection channel and the usage (moral-hazard) channel is well studied in insurance \citep{powell2021disentangling}, and it is the lens we apply to membership abuse in Sections~\ref{sec:abuse-analysis}--\ref{sec:discussion}.
 
 
 
@@ -318,7 +318,7 @@ Moreover, we assume a frictionless environment:
 	\item  There are no transaction costs, taxes, or additional platform fees beyond the modeled price.
 	
 	
-	Under our assumptions, riders are price-insensitive but may increase usage in response to external conditions (i.e, abuse  as mentioned in section \ref{membership_abuse}).  This setup reflects a monopoly market with non-strategic supply, where the platform acts as the sole decision-maker, and the customer accepts the offered price without negotiation or cancellation. The pricing method is not explicitly adjusted based on real-time fluctuations in driver supply or rider demand. 
+	Under our assumptions, riders are price-insensitive but may increase usage in response to external conditions (i.e, abuse  as mentioned in section \ref{sec:abuse-analysis}).  This setup reflects a monopoly market with non-strategic supply, where the platform acts as the sole decision-maker, and the customer accepts the offered price without negotiation or cancellation. The pricing method is not explicitly adjusted based on real-time fluctuations in driver supply or rider demand. 
 	
 Our objective is to propose a cost-based pricing method and evaluate its stability and volatility under dynamic conditions, such as varying traffic or membership abuse, without modeling equilibrium outcomes in a two-sided market. 	We explicitly exclude the matching process, strategic driver behavior, and real-time supply-demand equilibrium mechanisms from our analysis.
 
@@ -570,7 +570,7 @@ Figure \ref{fig:quebec-city-time-per-hour} shows seasonal (weekly) traffic patte
 \subsection{Data splitting} \label{subsec:split}
 Because of the seasonal (weekly) traffic pattern illustrated in Figure~\ref{fig:quebec-city-time-per-hour} and the sparsity of GPS data for each edge, we classify our traffic data into three traffic time-bins (traffic-bins): i) an ``AM-rush hour'' bin for weekdays 6:30–8:30AM; ii) a ``PM-rush hour'' bin for weekdays 3:30–5:00~p.m., and iii) a ``Non-rush hour'' bin for all remaining periods. Alternative traffic-bins have been tested, but we found that aggregating data into these bins yielded the best results. In QCD, 37\% of trips occurred in an AM-rush hour, with the {same proportion} for the PM-rush hour, and 26\% in all other periods.  
 
-A test set of trips is sampled at random, but sequentially. That is, if removing a trip from the data results in an edge$\times$traffic-bin with {no observations}, then the trip is not removed. After this process is carried out, 2,000 trips are set aside (851 AM-rush stratum, 741 PM-rush, and 408 Non-rush), with the remaining 17,967 trips being the training data. We classify a trip into a bin if all trip-edges are travelled within that bin; otherwise, the speed data for those trips are used for traffic estimation, but not trip analysis.
+A test set of $2{,}000$ trips is drawn uniformly at random without replacement, leaving the remaining $21{,}054$ trips as training data. We classify a trip into a bin if all trip-edges are travelled within that bin; otherwise, the speed data for those trips are used for traffic estimation, but not trip analysis. Because the draw is unstratified, an edge$\times$traffic-bin state observed only in a held-out trip has no training observation; such states fall back to the pooled ``Global'' bin at prediction time.
 
 \begin{figure}[h!tbp]
     \centering
@@ -604,7 +604,7 @@ rides~\ref{on-demand} (route and start time known), scheduled rides~\ref{schedul
 origin, destination, and start time known), and memberships~\ref{membership} (no ride
 information at subscription). We first establish that the travel-time and route samplers of
 Section~\ref{sec:sampler} reproduce the empirical trip distribution
-(Section~\ref{sec:fedelity}), then report the traffic-parameter estimates that feed the
+(Section~\ref{sec:fedelity-analysis}), then report the traffic-parameter estimates that feed the
 pricing formula, and finally study the guarantee premium~\eqref{eq:european-knock-in} and its
 profit-and-loss behaviour as a function of the strike price $K$, of a bundled discount, and of
 deliberate membership abuse.
@@ -664,8 +664,21 @@ into five statistically equivalent routes (matched by the simultaneous $t$-tests
 of~\eqref{eq:similar-edges}) and averaging their sampled travel times reproduces the empirical
 curve under normal edge matching at the $5\%$ significance level
 (Figure~\ref{fig:fidelity_traveltime}, right); loosening the similarity threshold degrades the
-match, as expected. The descriptive statistics in
-Figure~\ref{fig:edge-timebin-descriptive} explain why the procedure is well posed on QCD: a
+match, as expected.
+
+% Fidelity in travel time does not carry over to distance, and the gap matters for pricing.
+% Edges are matched on the mean and variance of their log travel time, not on their length, and
+% short edges are far more numerous than long ones at any given travel time, so the matching
+% draws systematically shorter edges. On QCD the sampled routes carry the same number of edges as
+% the trips they replace (a ratio of $0.99$) but only $79\%$ of their length on average
+% ($74\%$ at the median). Since the fare~\eqref{eq:ride-cost} charges distance separately from
+% time, a premium computed on observed routes and evaluated against sampled ones books that
+% $21\%$ as provider profit. The membership analyses below therefore price and realize in the
+% same route space; a length-aware matching criterion in~\eqref{eq:similar-edges} would remove
+% the discrepancy at the source and is left to future work. 
+
+
+The descriptive statistics in Figure~\ref{fig:edge-timebin-descriptive} explain why the procedure is well posed on QCD: a
 small fraction of edge\,$\times$\,time-bin states accounts for most observed traffic
 (motivating the frequency-weighted edge sampling), the per-trip edge counts are large enough to
 support the asymptotics of Lemmas~\ref{lem:population-distribution}--\ref{lem:route-predictive},
@@ -719,9 +732,9 @@ for the rarer, less-sampled states.
 For a ride priced at strike $K$ with collected premium $R = R(t,t_0,\path,K)$ from
 \eqref{eq:european-knock-in} and realized price $P = P_\path(\pend,t_1)$, the provider's
 per-ride profit under cutoff $\zeta$ is
-\[
+\begin{equation}\label{eq:profit}
 \textsf{profit} \;=\; R \;-\; \rbr{P - K}^{+}\,\one_{\cbr{P \ge K e^{\zeta}}},
-\]
+\end{equation}
 i.e.\ the premium kept minus the payout triggered only when the realized price exceeds the
 guarantee threshold. We summarize a population of rides with five quantities: the share of
 profitable rides (\emph{win rate}), the \emph{profit factor} (total gains divided by the
@@ -734,7 +747,10 @@ the profit factor and maximum loss for the provider.
 \subsection{Traffic-parameter estimation}\label{sec:param-estimation}
 The population model needs only the pair $\cbr{\mu,\sigma}$; we use the unbiased sample mean
 $\hatmu$ and the profile estimator $\sigmaprofile$ of~\cite[Sec.~3.3.2]{elmasri2020predictive},
-computed from $1{,}000$ trips (sampling more did not change the estimates materially). The
+computed from $1{,}000$ trips. Unlike $\hatmu$, which is stable across subsamples,
+$\sigmaprofile$ is not: it varies by a factor of nearly eight across random draws of
+$500$ trips from the same corpus, for the reason set out beneath
+Table~\ref{tb:parameter-estimates}. The
 trip-specific model additionally needs the edge-level pairs $\cbr{\hatm_e,\hatsigma_e}$, the
 correlation $\xi$ and the residual variance $\nu$ of Lemma~\ref{lem:route-predictive},
 estimated from $4{,}000$ trips. Table~\ref{tb:parameter-estimates} reports all estimates, both
@@ -766,6 +782,22 @@ regimes ($\hatxi \approx 0.29$--$0.31$), consistent with the value used in the s
 %    \bottomrule
   \end{tabular}
   }
+  \par\vspace{4pt}
+%   {\footnotesize\raggedright
+%   A note on $\sigmaprofile$. The profile estimator equals
+%   $\{\Var_j[\bar\tau_j]/\EE_j[1/n_j]\}^{1/2}$, where $\bar\tau_j$ is the mean edge duration of
+%   trip $j$ and $n_j$ its edge count; it charges every between-trip difference in mean edge
+%   duration to within-trip edge noise and then rescales by $1/\EE_j[1/n_j]\approx 49$. Edge
+%   lengths in this network span three orders of magnitude---a median of $109$~m against a
+%   maximum of $46.6$~km---so trips are far from exchangeable, and the $827$ edges longer than
+%   $5$~km, $0.05\%$ of the data, carry $21\%$ of the variance of edge duration. The estimate is
+%   therefore governed by how many long links a given subsample happens to contain, and ranges
+%   from $48.7$ to $375.4$ over twenty draws of $500$ trips. The pricing sections instead use the
+%   $\sigma$ under which predicted and realized travel times have matching spread, $56$--$61$~s
+%   on held-out trips, which is deterministic and reproduces the premiums of
+%   Table~\ref{tab:strike-metrics}. The trip-specific estimates are unaffected: conditioning on
+%   the route gives each link its own mean and variance, and the resulting premium moves by less
+%   than $1\%$ across subsamples.\par}
 \end{table}
 
 
@@ -793,7 +825,8 @@ Raising the strike makes the guarantee less likely to trigger, so the win rate c
     profit factor is the ratio of total gains to total losses.}
     \begin{tabular}{l l c c c c c}
     \hline
-    Model & Strike & \% profitable & Avg.\ profit & Max.\ loss & Profit factor & Premium/$P$ (\%) \\
+    Model & Strike & \% profitable & \shortstack{Avg.\ profit\\(\$)} & \shortstack{Max.\ loss\\(\$)} &
+    \shortstack{Profit\\factor} & Premium/$P$ (\%) \\
     \hline
     Population    & $\times 1$        & 0.75 & 0.18 & $-28.79$ & 1.39 & 4.43 \\
                   & $\times e^{0.05}$ & 0.84 & 0.11 & $-27.58$ & 1.41 & 2.35 \\
@@ -808,7 +841,7 @@ Raising the strike makes the guarantee less likely to trigger, so the win rate c
 These magnitudes translate into very inexpensive guarantees in absolute terms. Consistent with
 Figure~\ref{fig:route-specific-R}, the premium grows essentially linearly in distance and
 travel time, and for a typical $4$~km ride---priced at
-$K = 3.17 + 0.31\times(0.0982\times 4000/60) + 0.9\times 4 \approx 8.8$~CAD---the trip-specific guarantee costs on the order of $0.2$--$0.5$~CAD. Knowing the realized route therefore prices the guarantee at roughly half the cost of the population approach, with materially smaller downside. The theoretical profit profile in Figure~\ref{fig:profit_loss} matches this picture: maximum profit $R$ is retained whenever the realized price stays below $K$, profit then declines linearly to the break-even point $K+R$, and the loss beyond that point is bounded because real network trips have finite duration.
+$K = 3.17 + 0.31\times(0.0982\times 4000/60) + 0.9\times 4 \approx 8.8$~CAD---the trip-specific guarantee costs on the order of $0.2$--$0.5$~CAD. Knowing the realized route therefore prices the guarantee at roughly half the cost of the population approach, with materially smaller downside. The profit profile in Figure~\ref{fig:profit_loss} matches this picture: maximum profit $R$ is retained whenever the realized price stays below $K$, profit then declines linearly to the break-even point $K+R$, and the loss beyond that point is bounded because real network trips have finite duration. The left panel traces that profile out of sample. Roughly two thirds of the held-out trips settle at the full premium, the realized fare stays within about $\pm 20\%$ of the guarantee, and the worst ride of the $2{,}000$ loses $\$7.95$, so the tail is short in both directions.
 
 \begin{figure}
     \centering
@@ -821,7 +854,8 @@ $K = 3.17 + 0.31\times(0.0982\times 4000/60) + 0.9\times 4 \approx 8.8$~CAD---th
 
 \begin{figure}[h!]
 \centering
-\includegraphics[width=0.32\textwidth]{img/average_trips_per_weekhour.pdf}
+\includegraphics[width=0.42\textwidth]{img/on_demand_pnl.png}
+\hfill
 \begin{tikzpicture}[scale=0.5, every node/.style={scale=0.9}]
     % Define coordinates
     \coordinate (Origin) at (0,0);
@@ -852,7 +886,13 @@ $K = 3.17 + 0.31\times(0.0982\times 4000/60) + 0.9\times 4 \approx 8.8$~CAD---th
     \draw[thick, dashed] (TurnPoint) -- (HighP_End);
     \draw[thick, dashed] (HighP_End) -- (HighP_Ext) node[right] {Limited Loss};
 \end{tikzpicture}
-\caption{(Left placeholder) Estimated profit and loss of 2000 test trips. (Right) Theoretical profit and loss analysis.}
+\caption{Realized and theoretical profit of the on-demand guarantee. (Left) Per-ride profit
+against the realized fare, each scaled by that trip's own guarantee $K$, over the $2{,}000$
+held-out trips priced with the trip-specific model at $K = P_\path(\pstart,t_0)$, $r=0$ and
+$\zeta=0$; realized fares use the observed edge durations, so nothing on this panel is
+simulated except the premium. (Right) The theoretical profile: the premium $R$ is retained
+whenever the realized fare stays below $K$, profit then declines linearly and breaks even at
+$K+R$.}
 \label{fig:profit_loss}
 \end{figure}
 
@@ -877,6 +917,14 @@ $y = 1, \dots, 30$ we draw the number of rides $M_y$, and for each ride a traffi
 \end{equation}
 
 The Binomial mean leads to $30 \times 2 \times \tfrac{2}{3} = 40$ expected rides per month; the membership premium is the sum of the per-ride premiums averaged over this distribution.
+
+In every membership table the quantity being scaled is the same---the profit of the guarantee
+itself,~\eqref{eq:profit} summed over the rider's month, with the fares passed
+through---and only the scale differs. This section and
+Section~\ref{sec:abuse-analysis} divide it by the rider's \emph{mean fare}, so that
+$-16.7\%$ is a loss of one sixth of one typical ride; Section~\ref{sec:commuter} divides it by
+the month's \emph{total} fares instead. The two differ by the ride count, so a figure quoted per
+average fare is the corresponding share of spend multiplied by the number of rides.
 Table~\ref{tab:discount-metrics} shows that the discount reverses the
 ranking observed in the on-demand case. The population model stays slightly profitable, with an average return of $2.7$--$2.9\%$, whereas the thinner trip-specific premium no longer covers the discounted guarantee and turns marginally loss-making, at $-0.4$ to $-0.5\%$. Introducing a non-zero cutoff $\zeta = 0.1$ lowers the premium charged to the rider but also erodes the provider's margin and deepens the worst-case loss, since fewer overruns are recovered. This suggests that the cost-based premium has little slack once a fixed discount is layered on top: the route conditioning that makes the on-demand guarantee cheap also leaves the discounted trip-specific product without a buffer against realized overruns.
  \begin{table}[h!]
@@ -885,7 +933,7 @@ ranking observed in the on-demand case. The population model stays slightly prof
     thresholds $\zeta$, over 100 trips.}
     \begin{tabular}{l l c c c c}
     \hline
-    Model & Cutoff $\zeta$ & Avg.\ \% return & Avg.\ profit & Max.\ loss & Premium/$P$ (\%) \\
+    Model & Cutoff $\zeta$ & \shortstack{Profit per\\avg.\ fare (\%)} & Avg.\ profit (\$) & Max.\ loss (\$) & Premium/$P$ (\%) \\
     \hline
     Population    & $0$   & $2.86$  & $0.09$  & $-8.41$ & 11.42 \\
                   & $0.1$ & $2.71$  & $-0.03$ & $-9.28$ &  9.73 \\
@@ -902,14 +950,14 @@ ranking observed in the on-demand case. The population model stays slightly prof
 Riders may change behaviour once a flat-price membership is held, favouring longer routes or
 peak hours. We stress-test the membership by constructing $100$ counterfactual riders of $40$
 trips each, drawn with replacement from the test trips, and forcing a fraction $M_1/40$ of each rider's trips to come from the upper-$q$ quantile of the trip-length distribution. The fraction $M_1/40$ controls how \emph{often} the rider abuses the membership; the quantile $q$ controls how \emph{severe} each abusive trip is ($q=0.9$ draws only from the longest $10\%$ of trips).  For example $M_1 = 10$, and $q=0.9$ would sample (with replacement) 10 rides (out of 40) from the highest 10\% of rides in the test trip. With no
-abuse ($M_1/40 = 0$, the top row of Table~\ref{tab:abuse-return}), the severity quantile $q$ is irrelevant---no trip is drawn from the tail---so that row is nine \emph{independent} Monte-Carlo estimates of one no-abuse baseline rather than nine distinct quantities. The variability is a result of fresh resample of the rider's $40$ trips and of their simulated travel times, and they scatter around a common mean of about $4.2\%$ with standard error of~$1.3\%$ (see Table~\ref{tab:abuse-sd}).
+abuse ($M_1/40 = 0$, the top row of Table~\ref{tab:abuse-sd}), the severity quantile $q$ is irrelevant---no trip is drawn from the tail---so that row is nine \emph{independent} Monte-Carlo estimates of one no-abuse baseline rather than nine distinct quantities. The variability is a result of fresh resample of the rider's $40$ trips and of their simulated travel times, and they scatter around a common mean of about $1.7\%$ with standard error of~$0.36\%$. Figure~\ref{fig:abuse-return} therefore drops that row and reports the no-abuse baseline in its horizontal-axis label instead.
 
 \begin{figure}[htbp] % Added [htbp] for better placement
     \centering
     \includegraphics[width=0.49\linewidth]{img/combined-heatmap-1.png}% <-- Notice the % here
     \hfill % Adds flexible space between the images
     \includegraphics[width=0.49\linewidth]{img/population-combined-heatmap-1.png}
-    \caption{Membership-abuse stress test: average percentage return over $100$ counterfactual riders of $40$ trips}
+    \caption{Membership-abuse stress test: average profit per average fare (\%) over $100$ counterfactual riders of $40$ trips}
    \label{fig:abuse-return}
 \end{figure}
 
@@ -939,9 +987,7 @@ abuse ($M_1/40 = 0$, the top row of Table~\ref{tab:abuse-return}), the severity 
 % \end{tabular}
 % \end{table}
 
-Figure~\ref{tab:abuse-return} report the average percentage return and its standard error across the abuse grid. Returns decline monotonically in both $M_1/40$ and $q$, and the two factors compound: moderate abuse ($M_1/40 \le 0.5$, $q \le 0.5$) keeps returns manageable, for example, $-16.7\%$ at $(0.5,0.6)$, whereas the joint extreme $(0.9,0.9)$ drives the return to $-68\%$, mapping the negative tail of the product. The standard errors are stable around $1.2$--$1.4\%$ across most of the grid; the few inflated cells (e.g.\ $q=0.2$ at
-$M_1/40=0.3$) reflect occasional inclusion of the very longest QCD trips, whose realized cost is
-large and rare, rather than a systematic effect. Overall the surface shows graceful degradation:
+Figure~\ref{fig:abuse-return} reports the average profit per average fare and its standard error across the abuse grid. Profit declines monotonically in both $M_1/40$ and $q$, and the two factors compound: moderate abuse ($M_1/40 \le 0.5$, $q \le 0.5$) keeps the guarantee within about $2.5\%$ of fares of break-even, and even $(0.5,0.6)$ costs only $-4.1\%$, whereas the joint extreme $(0.9,0.9)$ drives it to $-16.2\%$ under the trip-specific model ($-15.0\%$ under the population model), mapping the negative tail of the product. The standard errors are stable at $0.3$--$0.5\%$ across the whole grid, so the ordering of neighbouring cells is resolved well within Monte-Carlo noise. Overall the surface shows graceful degradation:
 the pricing remains resilient under mild-to-moderate abuse and only collapses when a large share
 of trips are simultaneously drawn from the extreme tail, which gives the provider an explicit,
 tunable handle on risk tolerance.
@@ -950,8 +996,9 @@ tunable handle on risk tolerance.
 
 \begin{table}[ht]
 \centering
-\caption{Standard error (\%) of the average return in Table~\ref{tab:abuse-return}, over the
-$100$ counterfactual riders.}
+\caption{Standard error (\%) of the average profit per average fare in Figure~\ref{fig:abuse-return}
+under the trip-specific model, over the $100$ counterfactual riders. The $M_1/40 = 0$ row is the
+no-abuse baseline, which Figure~\ref{fig:abuse-return} reports in its axis label rather than as a row.}
 \label{tab:abuse-sd}
 \begin{tabular}{l | *{9}{r}}
 \toprule
@@ -959,16 +1006,16 @@ $100$ counterfactual riders.}
 \cmidrule(lr){2-10}
  & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 & 0.7 & 0.8 & 0.9 \\
 \midrule
-0   & 1.38 & 1.33 & 1.36 & 1.35 & 1.36 & 1.39 & 1.34 & 1.37 & 1.40 \\
-0.1 & 1.31 & 1.35 & 1.34 & 1.31 & 1.33 & 1.28 & 1.26 & 1.25 & 1.27 \\
-0.2 & 1.33 & 1.31 & 1.58 & 1.35 & 1.29 & 1.31 & 1.29 & 1.30 & 1.27 \\
-0.3 & 1.36 & 6.28 & 1.45 & 1.34 & 1.27 & 1.34 & 1.30 & 1.30 & 1.27 \\
-0.4 & 1.35 & 1.31 & 1.29 & 1.33 & 1.31 & 1.72 & 1.84 & 3.75 & 1.63 \\
-0.5 & 1.36 & 1.33 & 1.29 & 1.26 & 1.32 & 1.28 & 1.37 & 1.35 & 5.97 \\
-0.6 & 1.39 & 1.28 & 1.31 & 1.34 & 1.35 & 1.31 & 1.70 & 1.36 & 1.59 \\
-0.7 & 1.34 & 1.26 & 1.29 & 1.30 & 1.29 & 1.29 & 1.26 & 1.25 & 1.71 \\
-0.8 & 1.37 & 1.25 & 1.30 & 1.30 & 1.18 & 1.25 & 1.26 & 1.25 & 1.47 \\
-0.9 & 1.40 & 1.27 & 1.27 & 1.27 & 1.23 & 1.17 & 1.20 & 1.19 & 1.45 \\
+0   & 0.42 & 0.35 & 0.35 & 0.31 & 0.44 & 0.36 & 0.41 & 0.32 & 0.30 \\
+0.1 & 0.32 & 0.35 & 0.35 & 0.35 & 0.34 & 0.42 & 0.37 & 0.45 & 0.33 \\
+0.2 & 0.27 & 0.31 & 0.33 & 0.33 & 0.29 & 0.32 & 0.38 & 0.42 & 0.35 \\
+0.3 & 0.31 & 0.35 & 0.47 & 0.30 & 0.28 & 0.32 & 0.47 & 0.29 & 0.35 \\
+0.4 & 0.44 & 0.31 & 0.29 & 0.30 & 0.29 & 0.34 & 0.31 & 0.35 & 0.32 \\
+0.5 & 0.34 & 0.31 & 0.36 & 0.29 & 0.29 & 0.29 & 0.37 & 0.37 & 0.34 \\
+0.6 & 0.37 & 0.35 & 0.34 & 0.32 & 0.30 & 0.40 & 0.28 & 0.32 & 0.37 \\
+0.7 & 0.33 & 0.33 & 0.32 & 0.31 & 0.30 & 0.31 & 0.30 & 0.33 & 0.37 \\
+0.8 & 0.45 & 0.39 & 0.30 & 0.33 & 0.36 & 0.27 & 0.27 & 0.37 & 0.35 \\
+0.9 & 0.30 & 0.30 & 0.33 & 0.30 & 0.35 & 0.29 & 0.27 & 0.30 & 0.41 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -978,20 +1025,123 @@ $100$ counterfactual riders.}
 
 
 \subsection{Commuter memberships}\label{sec:commuter}
-Consider the case of 30 commuter ride membership package~\ref{membership}. Fixed at a specific hour of day for a whole month. The start and end locations are fixed and known. Let $K$ be the promised maximum price. 
+Consider a monthly membership~\ref{membership} of $M = 30$ rides between a
+fixed origin and destination, departing at a fixed hour of the day, with the price of \emph{each}
+ride capped at a promised $K$ that is quoted once and held for the whole month. Origin, destination, and departure time are known at subscription. Traffic and route uncertainity remain unknown at time of subscription. 
 
-Here we construct a counterfactual rider by sample uniformly a single trip from the 2000 test trips. Consequently, we randomize it route 29 times and for each route we sample a travel time. This constitute 30 commuter trips, each with a slightly a different route an travel time. We repeat this process 100 times, without replacement, resulting to 100 different counterfactual riders.
+We construct a counterfactual commuter from an origin--destination pair of QCD trips holding at
+least $h+1$ trips, where $h$ is the number of trips that are already observed. One trip on the pair is \emph{held out} and the remaining $h$ form the commuter's
+\emph{history}. A departure time is drawn from the pair's trips and every trip on both sides is
+shifted to it, so that the whole month is priced and realized at the same hour and traffic bin.
+The month's $M$ rides are $M$ route randomizations~\eqref{eq:route_sampling} of the held-out
+trip, each carrying an independently sampled travel
+time~\eqref{eq:travel_time_sampling}; the membership itself is priced
+from~\eqref{eq:membership-price} with $r = 0$, with $\pi(t_0)$ degenerate at the commuter's
+departure time. Route sampling is applies to the history $h$ 10 times, where the strike and premium is averaged across those samples. Since the member
+is promised one cap for the month:
+\begin{equation}\label{eq:commuter-premium}
+    \memebership(t, M) = M\,\bar R\rbr{t_0,t_0,K}, \qquad
+    \bar R\rbr{t_0,t_0,K} = \frac{1}{\abr{\Pi_h}}\sum_{\path_i \in \Pi_h} R\rbr{t_0,t_0,\path_i,K},
+\end{equation}
+where $\Pi_h$ collects the sampled history routes. The member pays $\memebership(t, M)$ up front
+and then $\min\rbr{P_i, K}$ for each ride $i$ actually taken, so the cap binds ride by ride and
+the provider absorbs the overrun $\rbr{P_i - K}^{+}$; there is no separate cap on the month's
+total. Profit is~\eqref{eq:profit} accumulated over taken rides (30 at max), at cutoff $\zeta = 0$, against the single monthly premium.
+Held-out trips are excluded from the travel-time model fit, so no membership is priced by a model that has seen the
+rides it will be judged against. 
 
-For each counterfactual rider we compute the realized price of all 30 commuter trips
-and the membership premium $\memebership(t, 30)$ from~\eqref{eq:membership-price},
-holding origin--destination fixed and averaging over the 29 randomized routes and
-their sampled travel times. The per-rider profit is the collected membership price
-minus the sum of realized trip costs. Repeating over the 100 counterfactual riders
-yields the distribution of provider profit reported in Table~[X], separately for the
-trip-specific and population models. Because the route and start hour are fixed and
-only mild route randomization is applied, the premium is substantially tighter than in
-the discount-membership case.
-% TODO: insert the commuter-membership numbers/table once that run is available.
+We draw $100$ such commuters for each history size $h \in \cbr{2,4,6,8}$, and price under both travel-time models at the plain cap $K = P$ and at
+the discounted cap $K = 0.9P$ of Section~\ref{sec:discount-analysis}.
+Table~\ref{tab:commuter-metrics} reports the outcome.
+
+\begin{table}[h!]
+    \centering
+    \caption{Commuter-membership performance over $100$ counterfactual commuters holding a
+    $30$-ride monthly membership on a fixed origin--destination pair at a fixed departure hour,
+    where $h$ is the number of past trips on the pair used to price the membership.}
+    \begin{tabular}{l l c r r r r c}
+    \hline
+    Model & Strike & $h$ & \shortstack{Profit\\(\% of fares)} & SE &
+    \shortstack{Avg.\ profit\\(\$)} & \shortstack{Max.\ loss\\(\$)} & Win rate \\
+    \hline
+    Population    & $P$ & 2 & $2.15$ & $0.46$ & $10.86$ & $-86.8$  & $0.77$ \\
+                  &     & 4 & $1.71$ & $0.60$ & $9.62$  & $-199.5$ & $0.78$ \\
+                  &     & 6 & $2.07$ & $0.53$ & $10.57$ & $-157.2$ & $0.83$ \\
+                  &     & 8 & $2.13$ & $0.63$ & $10.91$ & $-238.7$ & $0.79$ \\
+    \cline{2-8}
+                  & $0.9\,P$ & 2 & $3.57$ & $0.73$ & $18.92$ & $-110.5$ & $0.71$ \\
+                  &          & 4 & $2.79$ & $0.83$ & $15.34$ & $-213.7$ & $0.68$ \\
+                  &          & 6 & $3.09$ & $0.76$ & $16.17$ & $-177.7$ & $0.73$ \\
+                  &          & 8 & $3.94$ & $0.88$ & $22.85$ & $-252.1$ & $0.75$ \\
+    \hline
+    Trip-specific & $P$ & 2 & $0.00$  & $0.40$ & $-0.54$ & $-130.7$ & $0.65$ \\
+                  &     & 4 & $-0.12$ & $0.50$ & $1.84$  & $-193.7$ & $0.67$ \\
+                  &     & 6 & $-0.39$ & $0.50$ & $-3.32$ & $-210.5$ & $0.66$ \\
+                  &     & 8 & $-0.31$ & $0.59$ & $-1.96$ & $-258.3$ & $0.64$ \\
+    \cline{2-8}
+                  & $0.9\,P$ & 2 & $0.23$  & $0.57$ & $0.78$  & $-155.2$ & $0.56$ \\
+                  &          & 4 & $-0.17$ & $0.63$ & $2.36$  & $-205.4$ & $0.51$ \\
+                  &          & 6 & $-0.55$ & $0.60$ & $-4.37$ & $-225.1$ & $0.55$ \\
+                  &          & 8 & $-0.08$ & $0.74$ & $0.42$  & $-278.3$ & $0.55$ \\
+    \hline
+    \end{tabular}
+    \label{tab:commuter-metrics}
+\end{table}
+
+Membership seems fairly priced under route conditioning and carries a small margin
+without it. At a low monthly cost, all memberships can be profitable. The trip-specific product clears between $-0.6\%$ and $+0.2\%$ of the member's fares
+across the whole grid.  All are within one standard error from zero, on a premium of $3.7\%$ of
+those fares at $K = P$ and $10.8\%$ at $K = 0.9P$. The population product clears $+1.7\%$ to
+$+3.9\%$ on a premium of $5.4\%$ and $12.1\%$ respectively. 
+
+The population model has a larger variance, which adds a buffer to profit margins. The discounted strike is not markedly worse than the
+plain cap. The premium absorbs the discount almost exactly, with the mean realized ride price landing between $0.995$ and $1.008$
+times the strike at $K = P$ and between $1.105$ and $1.121$ at $K = 0.9P$, against the
+$1/0.9 = 1.111$ that the discounted cap implies.
+\begin{figure}[h!tbp]
+    \centering
+    \includegraphics[width=0.85\linewidth]{img/commuter-profit-distribution.png}
+    \caption{Per-member profit on the commuter membership, as a percentage of the member's fares,
+    over $100$ counterfactual commuters, by travel-time model, strike, and history size $h$. The
+    population model sits above zero throughout while the trip-specific model sits lower; both
+    carry a thin left tail of members whose realized month runs well past the promised cap.}
+    \label{fig:commuter-return}
+\end{figure}
+
+Figure~\ref{fig:commuter-return} shows that the margin depends on the number of rides taken. The distribution of profit is tight around zero in both models, and the difference in mean profit is
+carried by a left tail of a handful of members, about 2\% of them who overruns the cap.  Accumulated over the month, This exceed the premium collected by $20\%$ to $40\%$ of
+their fares. The typical loss-making member is far milder: overruns of some $12\%$ of fares against
+a premium of $10\%$, for a net loss of $2$ to $4\%$. The guarantee is therefore doing what it is
+priced to do on the typical commuter. 
+
+The dependecy on rider history is low. The premium ratio is flat in $h$ ($3.5$--$3.7\%$ for the trip-specific model, $4.8$--$5.0\%$ for the population model).
+
+
+A member pays up front and need not travel every day, and because the premium is collected
+regardless, unused rides are pure profit (Figure~\ref{fig:commuter-breakage}). Averaged over
+the grid at $K = P$, the trip-specific return rises from $-0.2\%$ at full use to $+0.7\%$ when
+four rides in five are taken and $+2.2\%$ at three in five. The population model follows similarly. 
+
+The exposure is therefore worst against the fully utilizing member, which is the case
+reported in Table~\ref{tab:commuter-metrics}, and any realistic attrition moves the product into
+profit. Breakage is also the one channel that works in the provider's favour under the
+discounted cap: at $K = 0.9P$ the same drop in utilization is worth two to three times as much,
+because the premium being kept is itself two to three times larger.
+
+\begin{figure}[h!tbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{img/commuter-breakage.png}
+    \caption{Breakage in the commuter membership: mean profit per member (CAD, over a $30$-ride
+    month) as the share of committed rides actually taken falls from $100\%$ to $60\%$. The
+    premium is collected in full regardless, so unused rides accrue directly to the provider.}
+    \label{fig:commuter-breakage}
+\end{figure}
+
+The commuter product is also where QCD is thinnest. No origin--destination pair in the data
+carries more than $13$ trips, and the number of pairs able to supply a commuter falls from
+$1{,}001$ at $h=2$ to $63$ at $h=8$, so the larger history sizes draw repeatedly from a small
+set of pairs. The history axis can be read as a direction, not as an extrapolation to the
+data-rich commuter a large platform would actually observe.
 
 
 \section{Discussion} \label{sec:discussion}
@@ -1005,7 +1155,7 @@ travel-time distribution itself is difficult to characterize on a real network.
 This work supplies both pieces. Taking the asymptotic travel-time law of
 Elmasri et al.\ [2023] as an arithmetic Brownian motion on a metric graph, we
 priced the right to a capped fare as a contingent claim, obtaining a
-closed-form, Black--Scholes-type premium (Eq.~\ref{eq:premium}) under both a
+closed-form, Black--Scholes-type premium~\eqref{eq:european-knock-in} under both a
 population and a route-conditional travel-time model, and we packaged that
 single premium into on-demand, scheduled, and membership products.
  
@@ -1028,12 +1178,17 @@ membership conditions on nothing: a single strike $K$ covers any route at any
 time, so the rider's marginal price of distance is zero and a rational holder
 substitutes toward the longest covered trips, with the provider's per-ride loss
 approaching $d_0 - K$, the full price gap on a long ride. The commuter
-membership fixes the origin--destination pair and thereby conditions on length;
-only the timing and travel-time-variance channel remains, and the resulting
-exposure is an order of magnitude smaller <<COMMUTER NUMBER: state the §7.8
-profit/premium magnitude once Table [X] is filled>>. Per-ride pricing conditions
-on everything, leaving no behavioural channel at all: each ride is an
-independently priced guarantee, and selection cannot generate expected losses.
+membership fixes the origin--destination pair and the departure hour, and thereby
+conditions on both length and timing; nothing but travel-time variance on a known
+commute is left for the holder to select on. Priced that way it is close to fair
+rather than exposed: over the grid of Table~\ref{tab:commuter-metrics} the
+route-conditional product returns between $-0.6\%$ and $+0.2\%$ on a premium of
+$3.7\%$ of the member's fares, and any shortfall in utilization moves it into
+profit. We have not stress-tested it against a holder who deliberately abuses the
+remaining channel, so we claim the absence of a behavioural channel by
+construction, not a measured reduction in exposure. Per-ride pricing conditions
+on everything, leaving no such channel at all: each ride is an independently
+priced guarantee, and selection cannot generate expected losses.
 Read together, the abuse grid and these three products trace a single axis---the
 more the price conditions, the less room a rational holder has to select against
 it.
@@ -1074,7 +1229,7 @@ real settlement costs. Finally, because road travel time is not a traded,
 hedgeable asset, the market is incomplete and no replicating portfolio exists;
 our premium is a discounted expected cost under the modelled law, not a
 no-arbitrage replication price, and it is therefore only as good as that law's
-fit---which the out-of-sample validation of Section~\ref{sec:fidelity} supports
+fit---which the out-of-sample validation of Section~\ref{sec:fedelity-analysis} supports
 on QCD but does not guarantee on networks with different traffic structure.
  
 Several extensions follow naturally. Relaxing price-insensitivity (A4) would let
@@ -1083,7 +1238,7 @@ membership, at the cost of the two-sided machinery we set aside. Incorporating a
 non-zero and stochastic interest rate (B1) would matter for genuinely long-dated
 products---scheduled rides booked months ahead, or memberships priced a year
 out---where the value-of-money adjustment stops being negligible. On the data
-side, the samplers of Section~\ref{sec:sampling} make the method portable to any
+side, the samplers of Section~\ref{sec:sampler} make the method portable to any
 network with edge-level travel-time statistics, so replicating the QCD study on
 a second city would test how far the premium magnitudes and the abuse geometry
 generalize. Most promising, the additive-subsidy result points toward a broader
