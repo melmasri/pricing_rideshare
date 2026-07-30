@@ -29,35 +29,104 @@ prepare_usage_grid <- function(results) {
 }
 
 #' Mean per-member profit (CAD) against the share of rides taken, by model and h.
-plot_usage_lines <- function(usage_grid, k_factor = 1) {
-  dt <- usage_grid[k_factor == k_factor]
-  dt[, model := factor(model, levels = c("Trip-specific", "Population"))]
-  dt[, history_size := factor(history_size, levels = sort(unique(history_size)))]
-
-  grey <- setNames(
-    grey(seq(0.35, 0.75, length.out = length(levels(dt$history_size)))),
-    levels(dt$history_size)
+prepare_usage_lines_data <- function(usage_grid, k_factors = c(1, 0.9)) {
+  dt <- as.data.frame(usage_grid[usage_grid$k_factor %in% k_factors, , drop = FALSE])
+  dt$model <- ifelse(dt$model %in% c("trip-specific", "Trip-specific"),
+                     "Trip-specific", "Population")
+  dt$model <- factor(dt$model, levels = c("Trip-specific", "Population"))
+  dt$history_size <- factor(dt$history_size, levels = c(2, 4, 6, 8))
+  dt$strike <- ifelse(dt$k_factor == 1, "K = P", sprintf("K = %.1g P", dt$k_factor))
+  strike_levels <- vapply(
+    k_factors,
+    function(k) if (k == 1) "K = P" else sprintf("K = %.1g P", k),
+    character(1)
   )
+  dt$strike <- factor(dt$strike, levels = strike_levels)
+  dt
+}
 
-  ggplot(dt, aes(x = 100 * usage_rate, y = mean_profit, color = history_size)) +
-    geom_hline(yintercept = 0, linewidth = 0.3, color = "grey55") +
-    geom_line(linewidth = 0.7, aes(linetype = model)) +
-    scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
-    scale_color_manual(values = grey, name = expression(italic(h))) +
+usage_lines_scales <- function() {
+  list(
+    scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)),
+    scale_color_grey(
+      name = expression(italic(h)),
+      start = 0.75,
+      end = 0.25,
+      breaks = c(2, 4, 6, 8),
+      labels = c(2, 4, 6, 8)
+    ),
     scale_linetype_manual(
-      values = c("Trip-specific" = "solid", "Population" = "dashed"),
+      values = c("Trip-specific" = "solid", "Population" = "22"),
       name = NULL
-    ) +
-    labs(
-      x = "Share of the 30 rides taken (%)",
-      y = "Mean profit per member (CAD)"
-    ) +
-    theme_minimal(base_size = 11) +
-    theme(
-      legend.position = "right",
-      legend.box = "vertical",
-      panel.grid.minor = element_blank()
     )
+  )
+}
+
+plot_usage_lines <- function(usage_grid, strike = 1) {
+  dt <- prepare_usage_lines_data(usage_grid, k_factors = strike)
+
+  Reduce(
+    `+`,
+    c(
+      list(
+        ggplot(dt, aes(
+          x = 100 * usage_rate,
+          y = mean_profit,
+          color = history_size,
+          linetype = model,
+          group = interaction(model, history_size)
+        )) +
+          geom_hline(yintercept = 0, linewidth = 0.3, color = "grey55") +
+          geom_line(linewidth = 0.7) +
+          labs(
+            x = "Share of the 30 rides taken (%)",
+            y = "Mean profit per member (CAD)"
+          ) +
+          theme_minimal(base_size = 11) +
+          theme(
+            legend.position = "right",
+            legend.box = "vertical",
+            panel.grid.minor = element_blank()
+          )
+      ),
+      usage_lines_scales()
+    )
+  )
+}
+
+#' Side-by-side breakage curves for multiple strikes with one shared legend.
+plot_usage_lines_panels <- function(usage_grid, k_factors = c(1, 0.9)) {
+  dt <- prepare_usage_lines_data(usage_grid, k_factors = k_factors)
+
+  Reduce(
+    `+`,
+    c(
+      list(
+        ggplot(dt, aes(
+          x = 100 * usage_rate,
+          y = mean_profit,
+          color = history_size,
+          linetype = model,
+          group = interaction(model, history_size)
+        )) +
+          geom_hline(yintercept = 0, linewidth = 0.3, color = "grey55") +
+          geom_line(linewidth = 0.7) +
+          facet_wrap(~strike, ncol = length(k_factors)) +
+          labs(
+            x = "Share of the 30 rides taken (%)",
+            y = "Mean profit per member (CAD)"
+          ) +
+          theme_minimal(base_size = 11) +
+          theme(
+            legend.position = "right",
+            legend.box = "vertical",
+            panel.grid.minor = element_blank(),
+            strip.text = element_text(face = "bold")
+          )
+      ),
+      usage_lines_scales()
+    )
+  )
 }
 
 #' Mean per-member profit against history size and the share of rides taken.

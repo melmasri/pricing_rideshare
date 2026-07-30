@@ -29,7 +29,7 @@ COMMUTER_DEFAULTS <- list(
   quotes_per_history_trip = 5L,
   k_factors = c(1.0, 0.9),
   models = c("trip-specific", "population"),
-  usage_rates = c(1, 0.9, 0.8, 0.7, 0.6),
+  usage_rates = seq(0, 1, by = 0.05),
   sigma_n = 2,
   significance = 0.05,
   rho = 0.31,

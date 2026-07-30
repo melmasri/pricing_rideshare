@@ -57,12 +57,12 @@ plot_profit_distribution(results)
 A member pays the premium up front but need not take all 30 rides. Columns give the share
 of the month's rides actually taken.
 
-```{r usage-lines, fig.width = 7.5, fig.height = 4.5}
-usage_grid <- prepare_usage_grid(results)
-plot_usage_lines(usage_grid, k_factor = 1)
+```{r usage-lines, fig.width = 11, fig.height = 4.5}
+plot_usage_lines_panels(results$usage)
 ```
 
 ```{r usage-heatmap-profit, fig.width = 8.5, fig.height = 6}
+usage_grid <- prepare_usage_grid(results)
 plot_usage_heatmap(usage_grid, "mean_profit")
 ```
 
@@ -84,14 +84,15 @@ knitr::kable(unique(results$summary[, .(
 
 ```{r export-figures}
 dir.create("../plot", showWarnings = FALSE, recursive = TRUE)
+usage_grid <- prepare_usage_grid(results)
 ggsave("../plot/commuter_premium_share.png", plot_premium_share(results),
        width = 7.5, height = 3.4, dpi = 300)
 ggsave("../plot/commuter_profit_distribution.png", plot_profit_distribution(results),
        width = 7.5, height = 4, dpi = 300)
 ggsave("../plot/commuter_usage_profit.png", plot_usage_heatmap(usage_grid, "mean_profit"),
        width = 8.5, height = 6, dpi = 300)
-ggsave("../plot/commuter_breakage_lines.png", plot_usage_lines(usage_grid, k_factor = 1),
-       width = 7.5, height = 4.5, dpi = 300)
+ggsave("../plot/commuter_breakage_lines.png", plot_usage_lines_panels(results$usage),
+       width = 11, height = 4.5, dpi = 300)
 file.copy(
   "../plot/commuter_breakage_lines.png",
   "../../latex/preprint/img/commuter-breakage.png",
