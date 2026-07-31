@@ -5,6 +5,16 @@ suppressPackageStartupMessages({
   library(ggplot2)
 })
 
+source("../figure_theme.R")
+
+commuter_panel_theme <- function(...) {
+  standard_panel_theme(...) +
+    theme(
+      strip.text = element_text(size = AXIS_TEXT_PT, face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+}
+
 strike_label <- function(k_factor) {
   label <- fifelse(k_factor == 1, "K = P", sprintf("K = %.2g P", k_factor))
   factor(label, levels = unique(label[order(-k_factor)]))
@@ -28,7 +38,7 @@ prepare_usage_grid <- function(results) {
   dt[]
 }
 
-#' Mean per-member profit (CAD) against the share of rides taken, by model and h.
+#' Mean per-member profit ($) against the share of rides taken, by model and h.
 prepare_usage_lines_data <- function(usage_grid, k_factors = c(1, 0.9)) {
   dt <- as.data.frame(usage_grid[usage_grid$k_factor %in% k_factors, , drop = FALSE])
   dt$model <- ifelse(dt$model %in% c("trip-specific", "Trip-specific"),
@@ -80,13 +90,12 @@ plot_usage_lines <- function(usage_grid, strike = 1) {
           geom_line(linewidth = 0.7) +
           labs(
             x = "Share of the 30 rides taken (%)",
-            y = "Mean profit per member (CAD)"
+            y = "Mean profit per member ($)"
           ) +
-          theme_minimal(base_size = 11) +
+          commuter_panel_theme() +
           theme(
             legend.position = "right",
-            legend.box = "vertical",
-            panel.grid.minor = element_blank()
+            legend.box = "vertical"
           )
       ),
       usage_lines_scales()
@@ -114,14 +123,12 @@ plot_usage_lines_panels <- function(usage_grid, k_factors = c(1, 0.9)) {
           facet_wrap(~strike, ncol = length(k_factors)) +
           labs(
             x = "Share of the 30 rides taken (%)",
-            y = "Mean profit per member (CAD)"
+            y = "Mean profit per member ($)"
           ) +
-          theme_minimal(base_size = 11) +
+          commuter_panel_theme() +
           theme(
             legend.position = "right",
-            legend.box = "vertical",
-            panel.grid.minor = element_blank(),
-            strip.text = element_text(face = "bold")
+            legend.box = "vertical"
           )
       ),
       usage_lines_scales()
@@ -132,7 +139,7 @@ plot_usage_lines_panels <- function(usage_grid, k_factors = c(1, 0.9)) {
 #' Mean per-member profit against history size and the share of rides taken.
 plot_usage_heatmap <- function(usage_grid, value = c("mean_profit", "mean_pct_return")) {
   value <- match.arg(value)
-  label <- if (value == "mean_profit") "Mean profit (CAD)" else "Mean profit (% of fares)"
+  label <- if (value == "mean_profit") "Mean profit ($)" else "Mean profit (% of fares)"
 
   ggplot(usage_grid, aes(x = usage_pct, y = history_size, fill = get(value))) +
     geom_tile(color = "white", linewidth = 0.4) +
@@ -146,8 +153,8 @@ plot_usage_heatmap <- function(usage_grid, value = c("mean_profit", "mean_pct_re
       x = "Share of the 30 rides taken (%)",
       y = "History size (trips observed before pricing)"
     ) +
-    theme_minimal(base_size = 11) +
-    theme(panel.grid = element_blank(), strip.text = element_text(face = "bold"))
+    commuter_panel_theme() +
+    theme(panel.grid = element_blank())
 }
 
 #' Distribution of per-member profit across counterfactual commuters.
@@ -162,17 +169,32 @@ plot_profit_distribution <- function(results) {
   riders[, strike := strike_label(k_factor)]
   riders[, history_size := factor(history_size, levels = sort(unique(history_size)))]
 
-  ggplot(riders, aes(x = history_size, y = pct_return, fill = strike)) +
+  ggplot(riders, aes(x = history_size, y = pct_return)) +
     geom_hline(yintercept = 0, linewidth = 0.3, color = "grey40") +
-    geom_boxplot(outlier.size = 0.5, alpha = 0.8, position = position_dodge(0.8)) +
+    geom_boxplot(
+      aes(
+        fill = strike,
+        group = interaction(history_size, strike)
+      ),
+      color = "black",
+      linetype = "solid",
+      outlier.size = 0.5,
+      alpha = 1,
+      linewidth = 0.45,
+      position = position_dodge(0.8)
+    ) +
     facet_wrap(~model) +
-    scale_fill_manual(values = c("#4575b4", "#d73027"), name = NULL) +
+    scale_fill_manual(
+      values = c("K = P" = "grey82", "K = 0.9 P" = "grey48"),
+      breaks = c("K = P", "K = 0.9 P"),
+      name = NULL
+    ) +
     labs(
       x = "History size (trips observed before pricing)",
       y = "Per-member profit (% of fares)"
     ) +
-    theme_minimal(base_size = 11) +
-    theme(strip.text = element_text(face = "bold"), legend.position = "top")
+    commuter_panel_theme() +
+    theme(legend.position = "top")
 }
 
 #' Premium charged, as a share of the fares the member ends up generating.
@@ -190,8 +212,8 @@ plot_premium_share <- function(results) {
       x = "History size (trips observed before pricing)",
       y = "Membership premium (% of fares)"
     ) +
-    theme_minimal(base_size = 11) +
-    theme(strip.text = element_text(face = "bold"), legend.position = "top")
+    commuter_panel_theme() +
+    theme(legend.position = "top")
 }
 
 #' LaTeX-ready summary rows, matching the columns of the discount-membership table.

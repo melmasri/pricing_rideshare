@@ -98,4 +98,9 @@ file.copy(
   "../../latex/preprint/img/commuter-breakage.png",
   overwrite = TRUE
 )
+file.copy(
+  "../plot/commuter_profit_distribution.png",
+  "../../latex/preprint/img/commuter-profit-distribution.png",
+  overwrite = TRUE
+)
 ```

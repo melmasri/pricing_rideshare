@@ -13,6 +13,8 @@ suppressPackageStartupMessages({
   library(traveltimeCLT)
 })
 
+source("figure_theme.R")
+
 SEED <- 1234L
 N_TEST <- 2000L
 MODELS <- c("trip-specific", "population")
@@ -21,6 +23,7 @@ MODELS <- c("trip-specific", "population")
 PLOT_MODELS <- "trip-specific"
 OUT_PNG <- "plot/on_demand_pnl.png"
 OUT_CSV <- "plot/plot_data/on_demand_pnl.csv"
+LATEX_IMG <- "../latex/preprint/img"
 
 trips <- fread("data/trips.csv")
 setnames(
@@ -105,20 +108,29 @@ pnl[, price_ratio := real_price / strike]
 pnl[, profit_ratio := 100 * profit / strike]
 drawn <- pnl[model %in% PLOT_MODELS]
 
+# Match Figure~\ref{fig:profit_loss} panel geometry in main.tex (0.42 x 0.34 of text width).
+PANEL_WIDTH_IN <- 0.42 * 6.77
+PANEL_HEIGHT_IN <- 0.34 * 6.77
+
 figure <- ggplot(drawn, aes(x = price_ratio, y = profit_ratio)) +
   geom_hline(yintercept = 0, linewidth = 0.3, color = "grey40") +
   geom_vline(xintercept = 1, linewidth = 0.3, linetype = 2, color = "grey40") +
-  geom_point(size = 0.45, alpha = 0.3, color = "#4575b4") +
-  coord_cartesian(
-    xlim = quantile(drawn$price_ratio, c(0.002, 0.998)),
-    ylim = quantile(drawn$profit_ratio, c(0.002, 0.999))
-  ) +
+  geom_point(size = 0.45, alpha = 0.45, color = "grey55") +
+  scale_x_continuous(breaks = c(0.8, 0.9, 1.0, 1.1, 1.2, 1.3)) +
+  scale_y_continuous(breaks = c(-20, -10, 0, 10, 20)) +
+  coord_cartesian(xlim = c(0.75, 1.35), ylim = c(-20, 20), expand = FALSE, clip = "off") +
   labs(
-    x = expression(paste("Realized fare relative to the guarantee, ", P / K)),
-    y = expression(paste("Profit, % of ", K))
+    x = "Realized fare relative to the guarantee, P/K",
+    y = "Profit, % of K"
   ) +
-  theme_minimal(base_size = 11) +
-  theme(panel.grid.minor = element_blank())
+  standard_panel_theme() +
+  theme(
+    legend.position = "none",
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 11),
+    plot.margin = margin(5, 5, 8, 5)
+  )
 
-ggsave(OUT_PNG, figure, width = 4.6, height = 3.6, dpi = 300)
+ggsave(OUT_PNG, figure, width = PANEL_WIDTH_IN, height = PANEL_HEIGHT_IN, dpi = 300)
+file.copy(OUT_PNG, file.path(LATEX_IMG, basename(OUT_PNG)), overwrite = TRUE)
 cat("Wrote", OUT_PNG, "and", OUT_CSV, "\n")

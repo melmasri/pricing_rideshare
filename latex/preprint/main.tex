@@ -18,6 +18,8 @@
 %% Please use the following statements for
 %% managing the text and math fonts for your papers:
 \usepackage{rotating}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
 \graphicspath{{img/}{tikz/}{img/tikz/}}
 
 \usepackage[a4paper,
@@ -574,21 +576,20 @@ A test set of $2{,}000$ trips is drawn uniformly at random without replacement, 
 
 \begin{figure}[h!tbp]
     \centering
-    \includegraphics[width=0.45\textwidth]{img/visit_likelihood.png}
-    \includegraphics[width=0.45\textwidth]{img/edges_per_ride.png}\\[4pt]
-    \includegraphics[width=0.45\textwidth]{img/edge_mean_logdur.png}
-    \includegraphics[width=0.45\textwidth]{img/edge_sd_logdur.png}
+    \includegraphics[width=\linewidth]{img/edge_timebin_descriptive.png}
     \caption{Descriptive statistics of the edge $\times$ time-bin representation in QCD.
-    (Top left) Empirical visit likelihood of edge $\times$ time-bin states, sorted in
-    decreasing order: a small fraction of states accounts for most observed traffic,
+    (Row~1, left) Empirical visit likelihood over state rank on a log scale (edge $\times$ time-bin states
+    sorted in decreasing visit frequency), shown as a density histogram: a small fraction
+    of states accounts for most observed traffic,
     motivating the frequency-weighted edge sampling in~\eqref{eq:route_sampling}.
-    (Top right) Distribution of the number of edges per trip, supporting the
+    (Row~1, centre) Density of the number of edges per trip, supporting the
     route-length randomization $\mathrm{Normal}[n,\tau]$ in~\eqref{eq:route_sampling}
     and the large-$n_\path$ regime of
     Lemmas~\ref{lem:population-distribution}--\ref{lem:route-predictive}.
-    (Bottom left) Average log travel time per state, approximately flat across states.
-    (Bottom right) Standard deviation of log travel time per state, which grows for
-    rarer (higher-index) states with smaller sample sizes.}
+    (Row~1, right) Visit-weighted density of per-state mean edge travel time on a log scale (sec).
+    (Row~2, left) Visit-weighted density of per-state SD of edge travel time on a log scale (sec).
+    (Row~2, centre) Density of trip travel times.
+    (Row~2, right) Density of trip distances.}
     \label{fig:edge-timebin-descriptive}
 \end{figure}
  
@@ -639,26 +640,15 @@ parameter is fixed at $\xi = 0.31$~\cite[Tab.~1]{elmasri2020predictive}.
     \label{fig:fidelity_traveltime}
 \end{figure}
  
-Figure~\ref{fig:fidelity_traveltime}(left) and the full-order detail in
-Figure~\ref{fig:fidelity-fulldep} show that all of our samplers track the empirical cumulative
-distribution closely, with fidelity increasing in the order of the retained dependence: the
-full-order sampler is best, followed by the second- and first-order variants. The population
+Figure~\ref{fig:fidelity_traveltime}(left) shows that our samplers track the empirical
+cumulative distribution closely. The first- and second-order variants are nearly
+indistinguishable from one another, and the marginal gain from higher-order dependence beyond
+the independent draw is small---most route-level uncertainty is already captured by the
+edge\,$\times$\,time-bin marginals together with the log-normal edge model. The population
 sampler, which discards serial dependence between consecutive edges, is visibly more dispersed
 but remains acceptable. Every one of our samplers improves substantially on the HMM
-alternative, which systematically overstates trip duration across the support. The marginal
-gain from adding higher-order dependence beyond the independent draw is small, indicating that
-most of the route-level uncertainty is already captured by the edge\,$\times$\,time-bin
-marginals together with the log-normal edge model.
- \begin{figure}[h!tbp]
-    \centering
-    \includegraphics[width=0.6\textwidth]{img/fidelity_fulldep.png}
-    \caption{Empirical CDF of realized versus simulated trip travel time using the
-    full-order dependent sampler~\eqref{eq:travel_time_sampling} over 1000 QCD trips;
-    the two distributions are nearly indistinguishable.}
-    \label{fig:fidelity-fulldep}
-\end{figure}
+alternative, which systematically overstates trip duration across the support.
 
- 
 Route variation~\eqref{eq:route_sampling} preserves this fidelity: resampling each test trip
 into five statistically equivalent routes (matched by the simultaneous $t$-tests
 of~\eqref{eq:similar-edges}) and averaging their sampled travel times reproduces the empirical
@@ -821,7 +811,7 @@ Raising the strike makes the guarantee less likely to trigger, so the win rate c
  \begin{table}[h!]
     \centering
     \caption{On-demand price-guarantee performance under different strike prices,
-    with $r=0$ and $\zeta=0$, over 10{,}000 trips. Profit and premium in CAD;
+    with $r=0$ and $\zeta=0$, over 10{,}000 trips;
     profit factor is the ratio of total gains to total losses.}
     \begin{tabular}{l l c c c c c}
     \hline
@@ -841,14 +831,19 @@ Raising the strike makes the guarantee less likely to trigger, so the win rate c
 These magnitudes translate into very inexpensive guarantees in absolute terms. Consistent with
 Figure~\ref{fig:route-specific-R}, the premium grows essentially linearly in distance and
 travel time, and for a typical $4$~km ride---priced at
-$K = 3.17 + 0.31\times(0.0982\times 4000/60) + 0.9\times 4 \approx 8.8$~CAD---the trip-specific guarantee costs on the order of $0.2$--$0.5$~CAD. Knowing the realized route therefore prices the guarantee at roughly half the cost of the population approach, with materially smaller downside. The profit profile in Figure~\ref{fig:profit_loss} matches this picture: maximum profit $R$ is retained whenever the realized price stays below $K$, profit then declines linearly to the break-even point $K+R$, and the loss beyond that point is bounded because real network trips have finite duration. The left panel traces that profile out of sample. Roughly two thirds of the held-out trips settle at the full premium, the realized fare stays within about $\pm 20\%$ of the guarantee, and the worst ride of the $2{,}000$ loses $\$7.95$, so the tail is short in both directions.
+$K = 3.17 + 0.31\times(0.0982\times 4000/60) + 0.9\times 4 \approx \$8.8$---the trip-specific guarantee costs on the order of \$0.2--\$0.5. Knowing the realized route therefore prices the guarantee at roughly half the cost of the population approach, with materially smaller downside. The profit profile in Figure~\ref{fig:profit_loss} matches this picture: maximum profit $R$ is retained whenever the realized price stays below $K$, profit then declines linearly to the break-even point $K+R$, and the loss beyond that point is bounded because real network trips have finite duration. The left panel traces that profile out of sample. Roughly two thirds of the held-out trips settle at the full premium, the realized fare stays within about $\pm 20\%$ of the guarantee, and the worst ride of the $2{,}000$ loses $\$7.95$, so the tail is short in both directions.
 
 \begin{figure}
     \centering
     \includegraphics[width=0.32\textwidth]{img/R-example.pdf}
     \includegraphics[width=0.32\textwidth]{img/R-example-distance.pdf}
     \includegraphics[width=0.32\textwidth]{img/R_route_vs_pop.pdf}
-    \caption{Premiums of on-demand~\ref{on-demand} scenario for 2000 test trips in QCD, while setting $K=P_\path(\pstart, t_0)$, as the expected price at the start (location, time) $=(\pstart, t_0)$.}
+    \caption{Premiums of the on-demand guarantee~\ref{on-demand} over $2{,}000$ held-out QCD
+    test trips at $K = P_\path(\pstart, t_0)$ and $\zeta = 0$: (left) premium $R$ against
+    estimated travel time; (middle) premium against trip distance; (right) population
+    premium against trip-specific premium (dashed line: $y = x$). Trip-specific and
+    population models are distinguished by grey dots and black crosses in the left
+    panel; the middle panel uses the same encoding without a duplicate legend.}
     \label{fig:route-specific-R}
 \end{figure}
 
@@ -856,43 +851,67 @@ $K = 3.17 + 0.31\times(0.0982\times 4000/60) + 0.9\times 4 \approx 8.8$~CAD---th
 \centering
 \includegraphics[width=0.42\textwidth]{img/on_demand_pnl.png}
 \hfill
-\begin{tikzpicture}[scale=0.5, every node/.style={scale=0.9}]
-    % Define coordinates
-    \coordinate (Origin) at (0,0);
-    \coordinate (K) at (4,0);
-    \coordinate (R_val) at (0,2);
-    \coordinate (KR) at (6,0);
-    \coordinate (TurnPoint) at (4,2);
-    \coordinate (LowP) at (0,2);
-    \coordinate (HighP_End) at (8,-2);
-    \coordinate (HighP_Ext) at (8.5,-2.5);
+\begin{tikzpicture}
+  \def\rOverK{0.035} % illustrative R/K at K = P (trip-specific on-demand)
+  \pgfmathsetmacro{\rPct}{100*\rOverK}
+  \pgfmathsetmacro{\kPlusR}{1+\rOverK}
+  \begin{axis}[
+    width=0.42\textwidth,
+    height=0.34\textwidth,
+    xmin=0.75, xmax=1.35,
+    ymin=-20, ymax=20,
+    xlabel={Realized fare relative to the guarantee, $P/K$},
+    ylabel={Profit, \% of $K$},
+    axis lines=left,
+    axis line style={thick, gray!70!black},
+    tick align=outside,
+    tick style={gray!70!black},
+    xtick={0.8,0.9,1.1,1.2,1.3},
+    ytick={-20,-10,0,10,20},
+    grid=both,
+    grid style={line width=0.2pt, gray!20},
+    clip=false,
+    label style={font=\fontfamily{cmss}\selectfont\normalsize},
+    tick label style={font=\fontfamily{cmss}\selectfont\small},
+    every axis plot/.append style={line cap=round},
+  ]
+    % Reference lines
+    \addplot[gray!45, dashed, line width=0.6pt] coordinates {(1,-20) (1,20)};
+    \addplot[gray!45, dashed, line width=0.6pt] coordinates {(0.75,0) (1.35,0)};
 
-    % Draw axes
-    \draw[->, thick] (-0.5,0) -- (9,0) node[below right, xshift=-5mm] {Actual Ride Price};
-    \draw[->, thick] (0,-3) -- (0,3.5) node[above] {Profit/Loss (\$)};
+    % Profit plateau (P <= K)
+    \addplot[draw=none, fill=gray!12]
+      coordinates {(0.75,0) (1,0) (1,\rPct) (0.75,\rPct)} -- cycle;
+    \addplot[black, line width=0.9pt, domain=0.75:1, samples=2] {\rPct};
 
-    % Draw tick marks on X-axis
-    \draw (4,3pt) -- (4,-3pt) node[below=4pt] {$K$};
-    \draw (6,3pt) -- (6,-3pt) node[above right=4pt] {$K+R$};
-    \foreach \x in {1,2,3,5,7,8} \draw (\x,2pt) -- (\x,-2pt);
+    % Linear payout region (K < P <= K+R)
+    \addplot[draw=none, fill=gray!6]
+      coordinates {(1,0) (\kPlusR,0) (1,\rPct)} -- cycle;
+    \addplot[black, line width=0.9pt, domain=1:\kPlusR, samples=2]
+      {100*(1+\rOverK - x)};
 
-    % Draw tick marks on Y-axis
-    \draw (3pt,2) -- (-3pt,2) node[left=4pt] {$+R$};
-    \draw (3pt,0) -- (-3pt,0) node[left=4pt] {\$0};
-    \foreach \y in {-2,-1,1,3} \draw (2pt,\y) -- (-2pt,\y);
+    % Loss beyond K+R (schematic continuation)
+    \addplot[black, line width=0.9pt, dashed, domain=\kPlusR:1.35, samples=2]
+      {100*(1+\rOverK - x)};
 
-    % Draw the profit/loss lines
-    \draw[thick] (LowP) -- (TurnPoint) node[midway, above] {Max Profit};
-    \draw[thick, dashed] (TurnPoint) -- (HighP_End);
-    \draw[thick, dashed] (HighP_End) -- (HighP_Ext) node[right] {Limited Loss};
+    % Key points
+    \addplot[only marks, mark=*, mark size=1.3pt, black]
+      coordinates {(1,\rPct) (\kPlusR,0)};
+    \node[anchor=north, font=\fontfamily{cmss}\selectfont\small, inner sep=0pt]
+      at (axis cs:1,-22) {$K$};
+    \node[anchor=north west, font=\fontfamily{cmss}\selectfont\small, inner sep=0pt]
+      at (axis cs:\kPlusR,-22) {$K{+}R$};
+    \node[anchor=east, font=\fontfamily{cmss}\selectfont\small, inner sep=2pt]
+      at (axis cs:0.75,\rPct) {$R$};
+  \end{axis}
 \end{tikzpicture}
 \caption{Realized and theoretical profit of the on-demand guarantee. (Left) Per-ride profit
 against the realized fare, each scaled by that trip's own guarantee $K$, over the $2{,}000$
 held-out trips priced with the trip-specific model at $K = P_\path(\pstart,t_0)$, $r=0$ and
 $\zeta=0$; realized fares use the observed edge durations, so nothing on this panel is
-simulated except the premium. (Right) The theoretical profile: the premium $R$ is retained
-whenever the realized fare stays below $K$, profit then declines linearly and breaks even at
-$K+R$.}
+simulated except the premium. (Right) The theoretical profile on the same scale: the premium
+$R$ is retained whenever the realized fare stays below $K$, profit then declines linearly and
+breaks even at $K+R$ (illustrated at $R/K \approx 3.5\%$).}
 \label{fig:profit_loss}
 \end{figure}
 
@@ -1102,9 +1121,9 @@ $1/0.9 = 1.111$ that the discounted cap implies.
     \centering
     \includegraphics[width=0.85\linewidth]{img/commuter-profit-distribution.png}
     \caption{Per-member profit on the commuter membership, as a percentage of the member's fares,
-    over $100$ counterfactual commuters, by travel-time model, strike, and history size $h$. The
-    population model sits above zero throughout while the trip-specific model sits lower; both
-    carry a thin left tail of members whose realized month runs well past the promised cap.}
+    over $100$ counterfactual commuters, by travel-time model, strike, and history size $h$.
+    Light and dark grey fills distinguish $K = P$ from $K = 0.9P$ in both panels. Both carry a
+    thin left tail of members whose realized month runs well past the promised cap.}
     \label{fig:commuter-return}
 \end{figure}
 
@@ -1131,7 +1150,7 @@ because the premium being kept is itself two to three times larger.
 \begin{figure}[h!tbp]
     \centering
     \includegraphics[width=\linewidth]{img/commuter-breakage.png}
-    \caption{Breakage in the commuter membership: mean profit per member (CAD) over a
+    \caption{Breakage in the commuter membership: mean profit per member over a
     $30$-ride month as the share of committed rides actually taken rises from $0\%$ to
     $100\%$, at $K = P$ (left) and $K = 0.9P$ (right). Solid lines are the trip-specific
     model and dashed lines the population model; darker grey corresponds to larger history
