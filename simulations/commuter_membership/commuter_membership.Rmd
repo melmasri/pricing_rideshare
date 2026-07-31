@@ -1,0 +1,106 @@
+---
+title: "Commuter membership — fixed origin, destination, and departure hour"
+date: "`r Sys.Date()`"
+output:
+  github_document: default
+---
+
+Reports the commuter membership of paper Sec. 7.8 (`sec:commuter`): 100 counterfactual
+commuters, each holding a 30-ride monthly membership on one origin–destination pair at
+one departure hour, priced under both travel-time models and both strikes.
+
+Each commuter's trips on the pair are split into a **history** set, which defines the
+route distribution the membership is priced against, and a **held-out** trip, randomized
+into the 30 rides the member actually takes. Held-out trips are excluded from the
+travel-time model fit, and both sides of the ledger pass through `similar_route()`, so the
+sampler's length bias cannot show up as provider profit.
+
+Run `Rscript run_commuter_membership.R` first; it saves
+`../plot/commuter_membership_results.rds`, which this report reads.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, dpi = 300)
+RESULTS_RDS <- "../plot/commuter_membership_results.rds"
+```
+
+```{r load}
+library(data.table)
+library(ggplot2)
+source("commuter_heatmap.R")
+
+if (!file.exists(RESULTS_RDS)) {
+  stop("Missing ", RESULTS_RDS, ". Run run_commuter_membership.R first.")
+}
+results <- readRDS(RESULTS_RDS)
+str(results$settings)
+```
+
+## Membership performance
+
+Returns are per member: the collected premium less realized overruns, as a percentage of
+the fares the member generates over the month.
+
+```{r summary-table}
+knitr::kable(format_summary_table(results), align = "lcrrrrrrr")
+```
+
+```{r premium-share, fig.width = 7.5, fig.height = 3.4}
+plot_premium_share(results)
+```
+
+```{r profit-distribution, fig.width = 7.5, fig.height = 4}
+plot_profit_distribution(results)
+```
+
+## Breakage
+
+A member pays the premium up front but need not take all 30 rides. Columns give the share
+of the month's rides actually taken.
+
+```{r usage-lines, fig.width = 11, fig.height = 4.5}
+plot_usage_lines_panels(results$usage)
+```
+
+```{r usage-heatmap-profit, fig.width = 8.5, fig.height = 6}
+usage_grid <- prepare_usage_grid(results)
+plot_usage_heatmap(usage_grid, "mean_profit")
+```
+
+```{r usage-heatmap-return, fig.width = 8.5, fig.height = 6}
+plot_usage_heatmap(usage_grid, "mean_pct_return")
+```
+
+## Data availability
+
+The number of origin–destination pairs able to supply a commuter shrinks quickly with the
+history size, which bounds how far the information axis can be pushed on this data.
+
+```{r eligible-pairs}
+knitr::kable(unique(results$summary[, .(
+  `History size` = history_size,
+  `Eligible OD pairs` = n_eligible_pairs
+)]))
+```
+
+```{r export-figures}
+dir.create("../plot", showWarnings = FALSE, recursive = TRUE)
+usage_grid <- prepare_usage_grid(results)
+ggsave("../plot/commuter_premium_share.png", plot_premium_share(results),
+       width = 7.5, height = 3.4, dpi = 300)
+ggsave("../plot/commuter_profit_distribution.png", plot_profit_distribution(results),
+       width = 7.5, height = 4, dpi = 300)
+ggsave("../plot/commuter_usage_profit.png", plot_usage_heatmap(usage_grid, "mean_profit"),
+       width = 8.5, height = 6, dpi = 300)
+ggsave("../plot/commuter_breakage_lines.png", plot_usage_lines_panels(results$usage),
+       width = 11, height = 4.5, dpi = 300)
+file.copy(
+  "../plot/commuter_breakage_lines.png",
+  "../../latex/preprint/img/commuter-breakage.png",
+  overwrite = TRUE
+)
+file.copy(
+  "../plot/commuter_profit_distribution.png",
+  "../../latex/preprint/img/commuter-profit-distribution.png",
+  overwrite = TRUE
+)
+```

@@ -10,7 +10,7 @@ baseline_x_label <- function(
     return(label)
   }
   sprintf(
-    "%s (baseline return %.*f%%; SE %.*f%%)",
+    "%s (no-abuse baseline %.*f%%; SE %.*f%%)",
     label,
     return_digits,
     baseline$mean_return,
@@ -87,17 +87,21 @@ prepare_sensitive_heatmap_data <- function(
 library(ggplot2)
 library(scales)
 
-theme_compact_heatmap <- function(base_size = 9) {
+source("../figure_theme.R")
+
+theme_compact_heatmap <- function(base_size = AXIS_TEXT_PT) {
   theme_minimal(base_size = base_size) +
     theme(
-      plot.title        = element_text(hjust = 0.5, margin = margin(b = 3)),
+      plot.title        = element_text(hjust = 0.5, margin = margin(b = 3), size = AXIS_TITLE_PT),
+      plot.subtitle     = element_text(hjust = 0.5, size = AXIS_TEXT_PT),
       plot.margin       = margin(2, 2, 2, 2, "mm"),
       panel.grid        = element_blank(),
-      axis.title        = element_text(size = base_size),
-      axis.text         = element_text(size = base_size - 1, colour = "black"),
+      axis.title        = element_text(size = AXIS_TITLE_PT),
+      axis.text         = element_text(size = AXIS_TEXT_PT, colour = "black"),
       axis.ticks        = element_line(linewidth = 0.3, colour = "black"),
-      legend.title      = element_text(size = base_size - 1),
-      legend.text       = element_text(size = base_size - 1)
+      legend.title      = element_text(size = LEGEND_TEXT_PT),
+      legend.text       = element_text(size = LEGEND_TEXT_PT),
+      strip.text        = element_text(size = AXIS_TEXT_PT, face = "bold")
     )
 }
 
@@ -130,7 +134,7 @@ plot_sensitive_return_heatmap <- function(
     ) +
     coord_fixed(ratio = 1, expand = FALSE) +
     labs(title = title, x = x_label, y = y_label) +
-    theme_compact_heatmap(14)
+    theme_compact_heatmap()
 }
 
 # ---- SD heatmap: grayscale, darker = noisier, scale capped at `cap` ---------
@@ -142,7 +146,7 @@ plot_sensitive_sd_heatmap <- function(
   y_label = expression(paste("Abuse fraction ", italic(M)[1], "/40")),
   cap     = 2,
   digits  = 1,
-  label_size = 5
+  label_size = 3.6
 ) {
   d   <- as.data.frame(data)
   lo  <- min(d$sd_return, na.rm = TRUE)
@@ -186,11 +190,7 @@ plot_sensitive_sd_heatmap <- function(
     ) +
     ggplot2::scale_fill_viridis_c(option = "C", name = "SE %") +
     ggplot2::labs(title = title, x = x_label, y = y_label) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(hjust = 0.5),
-      #panel.grid = ggplot2::element_blank()
-    )
+    theme_compact_heatmap()
 }
 
 plot_sensitive_combined_heatmap <- function(
@@ -204,7 +204,7 @@ plot_sensitive_combined_heatmap <- function(
     ggplot2::geom_tile(color = NA, linewidth = 0) +
     ggplot2::geom_text(
       ggplot2::aes(label = sprintf("%.1f\n±%.2f", mean_return, sd_return_se)),
-      size = 4,
+      size = 3.6,
       color = "black",
       lineheight = 0.85
     ) +
@@ -213,7 +213,7 @@ plot_sensitive_combined_heatmap <- function(
       mid = "white",
       high = "#1a9850",
       midpoint = 0,
-      name = "Return (%)"
+      name = "Profit\n(% of fares)"
     ) +
     ggplot2::labs(
       title = title,
@@ -221,12 +221,7 @@ plot_sensitive_combined_heatmap <- function(
       x = x_label,
       y = y_label
     ) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(hjust = 0.5),
-      plot.subtitle = ggplot2::element_text(hjust = 0.5, size = 10),
-      panel.grid = ggplot2::element_blank()
-    )
+    theme_compact_heatmap()
 }
 
 plot_sensitive_facet_heatmap <- function(
@@ -245,7 +240,7 @@ plot_sensitive_facet_heatmap <- function(
   long[, metric := factor(
     metric,
     levels = c("mean_return", "sd_return_se"),
-    labels = c("Mean return (%)", "SE of mean return (%)")
+    labels = c("Mean profit (% of fares)", "SE of mean profit (%)")
   )]
 
   ggplot2::ggplot(long, ggplot2::aes(x = q_num, y = abuse_rate, fill = value)) +
@@ -258,12 +253,7 @@ plot_sensitive_facet_heatmap <- function(
     ggplot2::facet_wrap(~metric, scales = "free") +
     ggplot2::scale_fill_viridis_c(option = "D", name = NULL) +
     ggplot2::labs(title = title, x = x_label, y = y_label) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(hjust = 0.5),
-      panel.grid = ggplot2::element_blank(),
-      strip.text = ggplot2::element_text(face = "bold")
-    )
+    theme_compact_heatmap()
 }
 
 plot_scenario_heatmaps <- function(scenario, model_label) {
@@ -282,7 +272,7 @@ plot_scenario_heatmaps <- function(scenario, model_label) {
     ),
     sd = plot_sensitive_sd_heatmap(
       heatmap_data,
-      title = paste(model_label, "— SE of mean return (%)"),
+      title = paste(model_label, "— SE of mean profit (%)"),
       x_label = x_label,
       y_label = expression(M[1]/40)
     ),
