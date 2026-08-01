@@ -1,0 +1,9 @@
+test,description,statistic,tolerance,pass
+1,Loss ratio is zero at k = 0,0,0,TRUE
+2,Full-month loss ratio is identical across lambda,7.105427357601e-15,1e-09,TRUE
+3,Loss ratio is non-decreasing in k,0,-1e-12,TRUE
+4,Perfect foresight ranks occasions by realized fare,0,0,TRUE
+5,Mean loss ratio is linear in k at lambda = 0 (min R^2),0.999575921602217,0.999,TRUE
+5,"Fitted slope matches M E[L] / Pi (max error, in fitted SEs)",2.65836722689732,3,TRUE
+6,Mean loss ratio is non-decreasing in lambda (worst gap + 2 SE),0.000438803805593511,0,TRUE
+7,lambda = 0 reproduces the Sec. 7.8 breakage curve (worst excess),-1.20587516955709,0,TRUE

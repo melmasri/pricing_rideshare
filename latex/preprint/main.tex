@@ -112,7 +112,7 @@ travel-time law. Later (Sec.~\ref{sec:complex-pricing}) we package this single p
 Because these premiums must be computed on sparse data, Section~\ref{sec:sampler} introduces route and travel-time samplers, and Section~\ref{sec:data} describes the 2014 Quebec City GPS data (QCD) on which we evaluate them. Section~\ref{sec:data-analysis} is the empirical core: we verify that the samplers reproduce the out-of-sample trip-time distribution (Sec.~\ref{sec:fedelity-analysis}), report the traffic-parameter estimates that feed the premium (Sec.~\ref{sec:param-estimation}), and study the guarantee's profit-and-loss behaviour as a function of the strike $K$
 (Sec.~\ref{sec:strike-sensitivity}), of a bundled discount
 (Sec.~\ref{sec:discount-analysis}), and of deliberate membership abuse
-(Sections~\ref{sec:abuse-analysis}--\ref{sec:commuter}). Section~\ref{sec:discussion} we discuss open ended problems and analysis.
+(Sections~\ref{sec:abuse-analysis}--\ref{sec:selective-exercise}). Section~\ref{sec:discussion} we discuss open ended problems and analysis.
 
 \subsection{Literature review}
 \label{literature}
@@ -842,8 +842,8 @@ $K = 3.17 + 0.31\times(0.0982\times 4000/60) + 0.9\times 4 \approx \$8.8$---the 
     test trips at $K = P_\path(\pstart, t_0)$ and $\zeta = 0$: (left) premium $R$ against
     estimated travel time; (middle) premium against trip distance; (right) population
     premium against trip-specific premium (dashed line: $y = x$). Trip-specific and
-    population models are distinguished by grey dots and black crosses in the left
-    panel; the middle panel uses the same encoding without a duplicate legend.}
+    population models are distinguished by grey and black dots, with a single
+    legend shown in the middle panel.}
     \label{fig:route-specific-R}
 \end{figure}
 
@@ -1145,7 +1145,9 @@ The exposure is therefore worst against the fully utilizing member, which is the
 reported in Table~\ref{tab:commuter-metrics}, and any realistic attrition moves the product into
 profit. Breakage is also the one channel that works in the provider's favour under the
 discounted cap: at $K = 0.9P$ the same drop in utilization is worth two to three times as much,
-because the premium being kept is itself two to three times larger.
+because the premium being kept is itself two to three times larger. Both statements assume the
+rides that go unused are dropped at random; Section~\ref{sec:selective-exercise} asks what
+survives of them when the member chooses which ones to drop.
 
 \begin{figure}[h!tbp]
     \centering
@@ -1164,6 +1166,148 @@ carries more than $13$ trips, and the number of pairs able to supply a commuter 
 $1{,}001$ at $h=2$ to $63$ at $h=8$, so the larger history sizes draw repeatedly from a small
 set of pairs. The history axis can be read as a direction, not as an extrapolation to the
 data-rich commuter a large platform would actually observe.
+
+
+\subsection{Selective exercise}\label{sec:selective-exercise}
+Section~\ref{sec:commuter} drops the rides a member does not take at random, which is what
+makes unused rides pure profit. A rational holder does not drop at random. On the morning of
+each occasion the rider observes something about conditions --- weather, a traffic
+application, prior experience of that day of the week --- and exercises the membership when
+the ride looks expensive, taking an outside option when it looks cheap. With origin,
+destination, and departure hour already fixed by the contract, this is the one dimension of
+selection a commuter has left: which day. It is also the counterpart, for a fully conditioned
+product, of the substitution towards long trips and peak hours stress-tested in
+Section~\ref{sec:abuse-analysis}.
+
+The rider's private benefit on occasion $i$ is the amount the cap saves them,
+$\rbr{P_i - K}^{+}$, which is exactly the provider's payout, so the rider's objective and the
+provider's loss are the same object and no separate model of rider utility is required.
+Writing $L_i = \rbr{P_i - K}^{+}$ and $A$ for the set of rides taken, the member pays
+$\memebership(t,M)$ up front and $\min\rbr{P_i, K}$ on each ride taken, against a cost of
+$P_i$ to the provider, so
+\begin{equation}\label{eq:selective-profit}
+\text{profit} = \memebership(t,M) + \sum_{i \in A} \min\rbr{P_i,K} - \sum_{i \in A} P_i
+              = \memebership(t,M) - \sum_{i \in A} L_i .
+\end{equation}
+Utilization enters only through which $L_i$ are summed. Selection therefore cannot change
+what the month costs in total; it changes the order in which that cost is incurred, and so
+it changes what a partly used month costs.
+
+We index the rider's foresight by $\lambda \in \sbr{0,1}$, the rank correlation between the
+signal the rider acts on and the realized fare. Let $r_i$ be the rank of $P_i$ among the
+month's $M$ fares, $z_i = \Phi^{-1}\rbr{\rbr{r_i - 1/2}/M}$ the corresponding within-month
+normal scores, and $\varepsilon_i \sim N(0,1)$ independent of them. The rider exercises in
+descending order of
+\begin{equation}\label{eq:selective-signal}
+S_i\rbr{\lambda} = \lambda\, z_i + \sqrt{1-\lambda^2}\; \varepsilon_i ,
+\end{equation}
+so the rides taken at utilization $u = k/M$ are the first $k$ of that order and the payout is
+$\Lambda\rbr{k,\lambda} = \sum_{i \in A\rbr{k,\lambda}} L_i$. At $\lambda = 0$ the order is
+independent of the fare and the design reproduces Section~\ref{sec:commuter} exactly; at
+$\lambda = 1$ the rider exercises on the $k$ most expensive mornings of the month. The
+ranking is taken on the fare rather than on the payout because $L$ has an atom at zero on the
+occasions that finish out of the money, whereas $P$ is continuous and $L$ is monotone in it;
+using normal scores rather than the fares themselves makes $\lambda$ scale free. Nothing is
+re-priced: the premiums, caps, and realized months are those of Section~\ref{sec:commuter} at
+$h = 8$, and the noise $\varepsilon_i$ is drawn once per member and reused at every $\lambda$
+and every $k$, so the curves that follow are paired across $\lambda$ member by member.
+
+\begin{figure}[h!tbp]
+    \centering
+    \includegraphics[width=\linewidth]{img/selective-exercise.png}
+    \caption{Selective exercise in the commuter membership: mean profit per member over a
+    $30$-ride month at $h = 8$, as the share of committed rides taken rises from $0\%$ to
+    $100\%$, at $K = P$ (left) and $K = 0.9P$ (right). Solid lines are the trip-specific
+    model and dashed lines the population model; darker grey corresponds to a rider with
+    more foresight $\lambda$. The $\lambda = 0$ lines are the $h = 8$ curves of
+    Figure~\ref{fig:commuter-breakage}, in which unused rides are dropped at random.}
+    \label{fig:selective-exercise}
+\end{figure}
+
+Figure~\ref{fig:selective-exercise} reports mean profit per member against utilization.
+Under random breakage profit falls linearly in $u$, since each dropped ride is worth the
+month's average payout. Under selection it falls convexly: the exposure is front-loaded onto
+the occasions the rider picks, so the first rides taken are the expensive ones and the last
+ones added are nearly free. Every curve meets at $u = 1$, which is
+equation~\eqref{eq:selective-profit} again --- taking all $30$ rides costs the provider the
+same total whatever order they are taken in. The gap between the linear and convex curves, at
+any utilization short of the full month, is the cost of selective exercise.
+
+Table~\ref{tab:selective-exercise} normalizes by the loss ratio $\Lambda/\memebership$ rather
+than by a percentage of fares, since the premium is fixed within a member while the fares
+taken grow with $k$, and a fares-taken denominator would carry a trend of its own into the
+utilization axis. Payouts and premiums are pooled across members, so the ratio crosses one
+exactly where mean profit crosses zero.
+
+\begin{table}[ht]
+\centering
+\caption{Selective exercise at $h = 8$ over the $100$ counterfactual commuters of
+Table~\ref{tab:commuter-metrics}, by rider foresight $\lambda$. Upper block: the pooled loss
+ratio $\Lambda/\memebership$ at a utilization of $u = 0.8$. Lower block: the break-even
+utilization $u^{*}$, the share of the month's rides at which the pooled loss ratio first
+reaches one. At full use the loss ratio does not depend on $\lambda$, and equals $0.68$ and
+$0.72$ for the population model at $K = P$ and $K = 0.9P$, and $1.08$ and $0.99$ for the
+trip-specific model.}
+\label{tab:selective-exercise}
+\begin{tabular}{l l | r r r r r r}
+\hline
+Model & Strike & \multicolumn{6}{c}{$\lambda$} \\
+\cline{3-8}
+ & & $0$ & $0.25$ & $0.50$ & $0.75$ & $0.90$ & $1.00$ \\
+\hline
+\multicolumn{8}{l}{\textit{Loss ratio at $u = 0.8$}} \\
+Population    & $P$      & $0.55$ & $0.59$ & $0.61$ & $0.63$ & $0.64$ & $0.64$ \\
+              & $0.9\,P$ & $0.58$ & $0.61$ & $0.63$ & $0.65$ & $0.67$ & $0.67$ \\
+Trip-specific & $P$      & $0.87$ & $0.94$ & $0.98$ & $1.01$ & $1.02$ & $1.03$ \\
+              & $0.9\,P$ & $0.80$ & $0.84$ & $0.87$ & $0.89$ & $0.92$ & $0.93$ \\
+\hline
+\multicolumn{8}{l}{\textit{Break-even utilization $u^{*}$}} \\
+Population    & $P$      & \multicolumn{6}{c}{$> 1$ at every $\lambda$} \\
+              & $0.9\,P$ & \multicolumn{6}{c}{$> 1$ at every $\lambda$} \\
+Trip-specific & $P$      & $0.92$ & $0.88$ & $0.83$ & $0.79$ & $0.75$ & $0.72$ \\
+              & $0.9\,P$ & \multicolumn{6}{c}{$> 1$ at every $\lambda$} \\
+\hline
+\end{tabular}
+\end{table}
+
+Only the trip-specific product at the plain cap goes under water inside the month, and it is
+there that selection bites hardest: the break-even utilization falls from $u^{*} = 0.92$ under
+random breakage to $0.83$ at $\lambda = 0.5$ and $0.72$ under perfect foresight. In dollars,
+a month at $80\%$ utilization turns from $+\$3.12$ per member to $-\$0.64$ as $\lambda$ runs
+from $0$ to $1$. The other three products absorb the channel: the population model finishes
+the full month at a loss ratio of $0.68$ and $0.72$, far enough below one that no attainable
+foresight brings it up, and the trip-specific product at the discounted cap lands at $0.994$
+at full use, so it sits on the boundary rather than crossing it. The pattern is the one
+Section~\ref{sec:commuter} already showed from a different angle: the buffer that protects a
+membership against selection is the same wider premium that makes it look expensive.
+
+With $100$ commuters the \emph{level} of $u^{*}$ is loosely determined --- a member-level
+bootstrap puts $u^{*}\rbr{0}$ for the trip-specific product at $K=P$ inside
+$\sbr{0.63, 0.99}$. The \emph{displacement} is not. Every $\lambda$ is evaluated on the same
+members and the same realized months, so the member heterogeneity that dominates the marginal
+interval cancels in the contrast, and the paired displacement
+$u^{*}\rbr{1} - u^{*}\rbr{0} = -0.20$ carries an interval of $\sbr{-0.33, -0.02}$, entirely
+below zero. What this data supports is the direction and the rough size of the movement, not
+a point estimate of the threshold itself.
+
+Because no data here identifies a rider's true foresight, the more useful question is the
+inverted one: at an assumed utilization $u_0$, how good a forecaster must the rider be before
+the product loses money? Writing
+$\lambda^{*}\rbr{u_0} = \min\cbr{\lambda : \Lambda\rbr{u_0,\lambda}/\memebership \ge 1}$, the
+trip-specific product at $K = P$ gives $\lambda^{*} = 0.69$ at $u_0 = 0.8$ and $0.13$ at
+$u_0 = 0.9$, and no attainable $\lambda^{*}$ at $u_0 \le 0.7$. The claim this supports needs
+no behavioural calibration: the commuter membership is safe unless riders can rank their own
+travel times, day to day on a fixed route at a fixed hour, with a rank correlation above
+those values.
+
+The exposure of Section~\ref{sec:commuter} is therefore worst against the selectively
+utilizing member rather than the fully utilizing one, and breakage is a benefit only to the
+extent that non-exercise is uninformed. This is the conditioning argument once more. The
+commuter contract conditions on origin, destination, and hour and leaves only the day free,
+and $\lambda$ measures how much of that residual dimension the holder can select on:
+$\lambda = 0$ is the fully conditioned limit, and $\lambda = 1$ realizes the within-cell
+dispersion of the fair premium in full. Adverse selection again acts precisely along the
+dimension the price does not condition on.
 
 
 \section{Discussion} \label{sec:discussion}
@@ -1205,10 +1349,12 @@ conditions on both length and timing; nothing but travel-time variance on a know
 commute is left for the holder to select on. Priced that way it is close to fair
 rather than exposed: over the grid of Table~\ref{tab:commuter-metrics} the
 route-conditional product returns between $-0.6\%$ and $+0.2\%$ on a premium of
-$3.7\%$ of the member's fares, and any shortfall in utilization moves it into
-profit. We have not stress-tested it against a holder who deliberately abuses the
-remaining channel, so we claim the absence of a behavioural channel by
-construction, not a measured reduction in exposure. Per-ride pricing conditions
+$3.7\%$ of the member's fares. A shortfall in utilization moves it into profit
+only when the rides forgone are uninformative:
+Section~\ref{sec:selective-exercise} stress-tests the residual channel and finds
+that a holder who can rank their own travel times pulls the break-even
+utilization down from $92\%$ to $72\%$, so the exposure is worst against the
+selectively utilizing member rather than the fully utilizing one. Per-ride pricing conditions
 on everything, leaving no such channel at all: each ride is an independently
 priced guarantee, and selection cannot generate expected losses.
 Read together, the abuse grid and these three products trace a single axis---the

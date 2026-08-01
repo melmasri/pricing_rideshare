@@ -1,0 +1,156 @@
+---
+title: "Selective exercise in the commuter membership"
+date: "`r Sys.Date()`"
+output:
+  github_document: default
+---
+
+Reports the selective-exercise section of the paper (`sec:selective-exercise`), which
+follows the commuter membership of Sec. 7.8. The commuter holds 30 capped rides on a
+fixed origin–destination pair at a fixed departure hour. Sec. 7.8 drops the rides that
+are not taken **at random**, which makes unused rides pure profit. A rational holder
+does not drop at random: they exercise the membership on the mornings the ride looks
+expensive and use an outside option when it looks cheap.
+
+The rider's private benefit on occasion *i* is the amount the cap saves them,
+\((P_i - K)^+\), which is exactly the provider's payout, so rider objective and provider
+loss are the same object and no separate utility model is needed. Foresight
+\(\lambda \in [0,1]\) is the rank correlation between the rider's signal and the
+realized fare: \(\lambda = 0\) reproduces Sec. 7.8, \(\lambda = 1\) is a rider who
+always exercises on the worst-traffic days.
+
+Nothing here is re-priced. Premiums, caps, and realized fares are read from the
+commuter study's cached artefacts. Run `Rscript run_selective_exercise.R` first; it
+saves `../plot/selective_exercise_results.rds`, which this report reads.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, dpi = 300)
+RESULTS_RDS <- "../plot/selective_exercise_results.rds"
+```
+
+```{r load}
+library(data.table)
+library(ggplot2)
+source("selective_exercise_figures.R")
+
+if (!file.exists(RESULTS_RDS)) {
+  stop("Missing ", RESULTS_RDS, ". Run run_selective_exercise.R first.")
+}
+results <- readRDS(RESULTS_RDS)
+curves <- results$curves
+str(results$settings)
+```
+
+## Acceptance tests
+
+These run inside `run_selective_exercise()` and hold up the whole run if any fails.
+Test 2 is the structural one: taking all 30 rides pays the same regardless of the order
+they were taken in. Test 7 is the regression test protecting the published Sec. 7.8
+breakage result.
+
+```{r tests}
+knitr::kable(
+  results$tests[, .(
+    `#` = test, Check = description,
+    Statistic = formatC(statistic, format = "g", digits = 4),
+    Tolerance = formatC(tolerance, format = "g", digits = 4),
+    Pass = pass
+  )],
+  align = "clrrc"
+)
+```
+
+## Profit and loss ratio against utilization
+
+The \(\lambda = 0\) line is the published breakage curve. Every line above it is what
+the same month costs once the rider chooses which days to exercise. The claim to read
+off the lower panel: the loss ratio is **linear** in utilization at \(\lambda = 0\) and
+**concave** for \(\lambda > 0\), because the provider's exposure is front-loaded onto
+the occasions the rider picks. The gap between the two is the cost of selective
+exercise.
+
+Open circles on the upper panel are the published Sec. 7.8 breakage curve. They sit on
+the \(\lambda = 0\) line, which is acceptance test 7 by eye.
+
+```{r curves, fig.width = 11, fig.height = 8}
+plot_selective_panels(curves, results$reference_usage)
+```
+
+At full utilization every curve meets, whatever the foresight: taking all 30 rides
+costs the provider the same total regardless of the order they are taken in. Selection
+only moves *when* the exposure is paid, which is why it matters exactly to the extent
+that the member does not use the whole month.
+
+```{r surface, fig.width = 10, fig.height = 6.5}
+plot_loss_ratio_surface(curves)
+```
+
+## Break-even utilization
+
+\(u^*(\lambda)\) is the first utilization at which the loss ratio reaches one, linearly
+interpolated between adjacent ride counts. `NA (>1)` means the product never breaks even
+inside the month. Intervals are member-level nonparametric bootstrap percentiles,
+resampling members rather than (member, \(\lambda\)) cells so the pairing induced by the
+common random numbers survives.
+
+Two loss ratios are carried through, and they answer different questions. The
+**member-average** ratio averages each member's own payout-to-premium ratio, so every
+member counts once and it describes the typical membership. The **pooled** ratio divides
+total payout by total premium, so members count in proportion to what they pay; it is
+the provider's book, and it crosses one exactly where mean profit crosses zero, which is
+what Sec. 7.8 reports. The premium distribution is right skewed enough for the two to
+part company — at full use under route conditioning at \(K = P\) the member average is
+1.30 while the book is 1.08 and the median member is at 0.70 — so the paper headlines
+the pooled version.
+
+```{r break-even-table}
+knitr::kable(format_break_even_table(results$break_even), align = "lccrrrr")
+```
+
+An interval is withheld where most resamples never break even inside the month, since
+it would describe the minority that did rather than the quantity asked for. With 100
+commuters the intervals are wide: the data caps the h = 8 cohort at 141 possible
+commuters, so this axis cannot be sharpened by resampling more of it.
+
+```{r break-even-figure, fig.width = 8, fig.height = 4}
+plot_break_even(results$break_even)
+```
+
+## How good a forecaster the rider must be
+
+Rather than estimating the rider's true foresight, which no data here identifies, the
+question is inverted: at an assumed utilization \(u_0\), how good a forecaster must the
+rider be before the product loses money?
+
+```{r foresight-table}
+knitr::kable(format_foresight_table(results$lambda_star), align = "lccrrr")
+```
+
+At \(u_0 = 1\) the answer is degenerate by construction — the whole month costs the same
+under every \(\lambda\) — so that row reports whether the product is under water at full
+use, not a foresight threshold.
+
+## Export
+
+```{r export-figures}
+dir.create("../plot", showWarnings = FALSE, recursive = TRUE)
+ggsave("../plot/selective_exercise_curves.png",
+       plot_selective_panels(curves, results$reference_usage),
+       width = 11, height = 8, dpi = 300)
+ggsave("../plot/selective_exercise_surface.png", plot_loss_ratio_surface(curves),
+       width = 10, height = 6.5, dpi = 300)
+ggsave("../plot/selective_exercise_break_even.png", plot_break_even(results$break_even),
+       width = 8, height = 4, dpi = 300)
+
+# The paper carries the profit panel alone. Under the pooled normalization the loss
+# ratio is the same curve rescaled -- Λ/Π = 1 − profit/Π with Π fixed in k and λ — so a
+# second panel would repeat the first against a relabelled axis, and profit in dollars
+# is directly comparable to the breakage figure of Sec. 7.8.
+ggsave("../plot/selective_exercise_profit.png", plot_selective_profit(curves),
+       width = 11, height = 4.5, dpi = 300)
+file.copy(
+  "../plot/selective_exercise_profit.png",
+  "../../latex/preprint/img/selective-exercise.png",
+  overwrite = TRUE
+)
+```

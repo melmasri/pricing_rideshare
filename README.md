@@ -11,6 +11,7 @@ pricing_rideshare/
 │   └── preprint/       # Preprint / submission variant (add sources here)
 ├── simulations/
 │   ├── commuter_membership/  # Commuter membership — fixed origin/destination and hour
+│   ├── selective_exercise/   # Commuter who chooses which days to exercise the cap
 │   ├── membership_abuse/     # Discount & flat membership stress tests
 │   ├── plot/           # Shared figure and RDS outputs
 │   ├── sql/            # Trip extraction queries
@@ -29,6 +30,7 @@ pricing_rideshare/
 | Discount membership abuse | `simulations/membership_abuse/sensitive_test_generate.Rmd` |
 | Flat membership abuse | `simulations/membership_abuse/flat_membership_abuse.Rmd` |
 | Commuter membership (fixed OD) | `simulations/commuter_membership/` |
+| Selective exercise of the commuter cap | `simulations/selective_exercise/` |
 
 ## Running simulations
 
@@ -40,6 +42,7 @@ cd simulations && Rscript fidelity_traveltime_figure.R
 cd simulations && Rscript on_demand_premium_figure.R
 cd simulations && Rscript on_demand_pnl.R
 cd simulations/commuter_membership && Rscript run_commuter_membership.R
+cd simulations/selective_exercise && Rscript run_selective_exercise.R
 cd simulations/membership_abuse && Rscript -e 'rmarkdown::render("sensitive_test_generate.Rmd")'
 ```
 
