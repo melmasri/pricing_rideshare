@@ -173,9 +173,8 @@ plot_break_even <- function(break_even) {
   )]
   dt[, strike := strike_label(strike)]
 
-  # drop = FALSE keeps a panel for a product that never breaks even: an empty panel is
-  # the result, not a missing one.
-  ggplot(dt[!is.na(u_star)], aes(x = lambda, y = 100 * u_star, color = strike, group = strike)) +
+  # facet_wrap(drop = FALSE) keeps both model panels even if one has no break-even points;
+  # products with u_star = NA simply have no strike series drawn.
     geom_ribbon(
       aes(ymin = 100 * u_star_lo, ymax = 100 * u_star_hi, fill = strike),
       alpha = 0.15, colour = NA
