@@ -215,7 +215,7 @@ format_break_even_table <- function(break_even) {
     `95\\% CI` = interval_or_dash(u_star_pooled_lo, u_star_pooled_hi,
                                   p_no_break_even_pooled),
     `$u^*$ member avg.` = fifelse(is.na(u_star), "NA (>1)", sprintf("%.2f", u_star)),
-    `95\\% CI ` = interval_or_dash(u_star_lo, u_star_hi, p_no_break_even)
+    `95\\% CI (member avg.)` = interval_or_dash(u_star_lo, u_star_hi, p_no_break_even)
   )]
 }
 
