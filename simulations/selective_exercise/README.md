@@ -115,7 +115,7 @@ profit as the secondary column.
 
 ## Acceptance tests
 
-Eight checks run before any figure is drawn and stop the run if any fails.
+Seven checks run before any figure is drawn and stop the run if any fails.
 
 | # | Check |
 |---|-------|
